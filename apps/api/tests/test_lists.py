@@ -402,6 +402,90 @@ async def test_reorder_items(
     assert data[2]["content"] == "First"
 
 
+# --- Completion tracking ---
+
+
+async def test_completion_records_username(
+    client: AsyncClient, auth_headers: dict
+):
+    fid = await create_family_with_member(client, auth_headers)
+    lst = await client.post(
+        f"/v1/families/{fid}/lists",
+        json={"name": "Todo"},
+        headers=auth_headers,
+    )
+    lid = lst.json()["id"]
+
+    items = await client.post(
+        f"/v1/families/{fid}/lists/{lid}/items",
+        json={"items": [{"content": "Task"}]},
+        headers=auth_headers,
+    )
+    iid = items.json()[0]["id"]
+
+    resp = await client.patch(
+        f"/v1/families/{fid}/lists/{lid}/items/{iid}",
+        json={"status": "done"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["completed_by_username"] is not None
+    assert data["completed_at"] is not None
+
+
+async def test_child_cannot_undo_done(
+    client: AsyncClient,
+    auth_headers: dict,
+    db: AsyncSession,
+):
+    """A child member cannot undo a completed item."""
+    fid = await create_family_with_member(client, auth_headers)
+    _, child_headers = await create_second_user(db)
+    await join_family(client, fid, auth_headers, child_headers)
+
+    # Parent creates list and item
+    lst = await client.post(
+        f"/v1/families/{fid}/lists",
+        json={"name": "Chores", "list_type": "chores"},
+        headers=auth_headers,
+    )
+    lid = lst.json()["id"]
+
+    items = await client.post(
+        f"/v1/families/{fid}/lists/{lid}/items",
+        json={"items": [{"content": "Clean room"}]},
+        headers=auth_headers,
+    )
+    iid = items.json()[0]["id"]
+
+    # Child marks it done
+    resp = await client.patch(
+        f"/v1/families/{fid}/lists/{lid}/items/{iid}",
+        json={"status": "done"},
+        headers=child_headers,
+    )
+    assert resp.status_code == 200
+
+    # Child tries to undo — should fail
+    resp = await client.patch(
+        f"/v1/families/{fid}/lists/{lid}/items/{iid}",
+        json={"status": "pending"},
+        headers=child_headers,
+    )
+    assert resp.status_code == 403
+    assert "parent" in resp.json()["detail"].lower()
+
+    # Parent can undo
+    resp = await client.patch(
+        f"/v1/families/{fid}/lists/{lid}/items/{iid}",
+        json={"status": "pending"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "pending"
+
+
 # --- Non-member access ---
 
 

@@ -100,6 +100,7 @@ class ItemResponse(BaseModel):
     due_date: datetime | None
     completed_at: datetime | None
     completed_by: UUID | None
+    completed_by_username: str | None = None
     created_at: datetime
     attachments: list[AttachmentResponse] = []
 

@@ -11,12 +11,14 @@ import { PhotoUpload } from "@/components/photo-upload";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useFamily } from "@/hooks/useFamilies";
 import {
   useAddItems,
   useDeleteItem,
   useListDetail,
   useUpdateItem,
 } from "@/hooks/useLists";
+import { useAuthStore } from "@/stores/auth-store";
 
 export default function ListDetailPage() {
   const { familyId, listId } = useParams<{
@@ -24,10 +26,15 @@ export default function ListDetailPage() {
     listId: string;
   }>();
   const { data: list, isLoading } = useListDetail(familyId, listId);
+  const { data: family } = useFamily(familyId);
+  const user = useAuthStore((s) => s.user);
   const addItems = useAddItems(familyId, listId);
   const updateItem = useUpdateItem(familyId, listId);
   const deleteItem = useDeleteItem(familyId, listId);
   const [newItem, setNewItem] = useState("");
+
+  const currentMember = family?.members.find((m) => m.user_id === user?.id);
+  const isParent = currentMember?.role === "parent";
 
   if (isLoading || !list) {
     return (
@@ -188,50 +195,104 @@ export default function ListDetailPage() {
               <div className="space-y-2">
                 {doneItems.map((item: ItemResponse) => (
                   <Card key={item.id} className="opacity-60">
-                    <CardContent className="flex items-center gap-3 py-3">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStatus(item)}
-                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-indigo-500 bg-indigo-500 text-white"
-                        aria-label="Mark as pending"
-                      >
-                        <svg
-                          className="h-3.5 w-3.5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          strokeWidth="3"
-                          stroke="currentColor"
+                    <CardContent className="space-y-1 py-3">
+                      <div className="flex items-center gap-3">
+                        {isParent ? (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(item)}
+                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-indigo-500 bg-indigo-500 text-white"
+                            aria-label="Mark as pending"
+                          >
+                            <svg
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              strokeWidth="3"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M4.5 12.75l6 6 9-13.5"
+                              />
+                            </svg>
+                          </button>
+                        ) : (
+                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-indigo-500 bg-indigo-500 text-white">
+                            <svg
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              strokeWidth="3"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M4.5 12.75l6 6 9-13.5"
+                              />
+                            </svg>
+                          </div>
+                        )}
+                        <span className="flex-1 text-gray-500 line-through">
+                          {item.content}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => deleteItem.mutate(item.id)}
+                          className="text-gray-400 hover:text-red-500"
+                          aria-label="Delete item"
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M4.5 12.75l6 6 9-13.5"
-                          />
-                        </svg>
-                      </button>
-                      <span className="flex-1 text-gray-500 line-through">
-                        {item.content}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => deleteItem.mutate(item.id)}
-                        className="text-gray-400 hover:text-red-500"
-                        aria-label="Delete item"
-                      >
-                        <svg
-                          className="h-4 w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          strokeWidth="2"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
+                          <svg
+                            className="h-4 w-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth="2"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                      {(item.completed_by_username || item.completed_at) && (
+                        <p className="ml-9 text-xs text-gray-400">
+                          {item.completed_by_username && (
+                            <>Done by {item.completed_by_username}</>
+                          )}
+                          {item.completed_at && (
+                            <>
+                              {item.completed_by_username ? " " : "Done "}
+                              {new Date(item.completed_at).toLocaleDateString(
+                                undefined,
+                                {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                },
+                              )}
+                            </>
+                          )}
+                        </p>
+                      )}
+                      {item.attachments?.length > 0 && (
+                        <div className="ml-9 flex gap-2">
+                          {item.attachments.map((att) => (
+                            <AttachmentThumbnail
+                              key={att.id}
+                              familyId={familyId}
+                              listId={listId}
+                              itemId={item.id}
+                              attachment={att}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}

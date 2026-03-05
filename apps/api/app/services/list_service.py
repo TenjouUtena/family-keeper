@@ -161,6 +161,21 @@ class ListService:
                 detail="Not visible to your role",
             )
 
+        # Batch-fetch usernames for completed_by
+        completer_ids = {
+            i.completed_by
+            for i in family_list.items
+            if i.completed_by
+        }
+        username_map: dict[UUID, str] = {}
+        if completer_ids:
+            result2 = await self.db.execute(
+                select(User.id, User.username).where(
+                    User.id.in_(completer_ids)
+                )
+            )
+            username_map = dict(result2.all())
+
         items = [
             ItemResponse(
                 id=item.id,
@@ -173,6 +188,9 @@ class ListService:
                 due_date=item.due_date,
                 completed_at=item.completed_at,
                 completed_by=item.completed_by,
+                completed_by_username=username_map.get(
+                    item.completed_by
+                ),
                 created_at=item.created_at,
                 attachments=[
                     AttachmentResponse.model_validate(a)
@@ -370,8 +388,19 @@ class ListService:
             update_data["completed_by"] = user.id
             update_data["status"] = ItemStatus.DONE
         elif "status" in update_data:
-            update_data["status"] = ItemStatus(update_data["status"])
-            if update_data["status"] != ItemStatus.DONE:
+            new_status = ItemStatus(update_data["status"])
+            # Only parents can undo a completed item
+            if (
+                item.status == ItemStatus.DONE
+                and new_status != ItemStatus.DONE
+                and member.role.value != "parent"
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only parents can undo completed items",
+                )
+            update_data["status"] = new_status
+            if new_status != ItemStatus.DONE:
                 update_data["completed_at"] = None
                 update_data["completed_by"] = None
 
@@ -400,6 +429,9 @@ class ListService:
             due_date=item.due_date,
             completed_at=item.completed_at,
             completed_by=item.completed_by,
+            completed_by_username=await self._get_username(
+                item.completed_by
+            ),
             created_at=item.created_at,
             attachments=[
                 AttachmentResponse.model_validate(a) for a in attachments
@@ -462,6 +494,12 @@ class ListService:
         ]
 
     # --- Helpers ---
+
+    async def _get_username(self, user_id: UUID | None) -> str | None:
+        if not user_id:
+            return None
+        user = await self.db.get(User, user_id)
+        return user.username if user else None
 
     async def _get_list_for_member(
         self, list_id: UUID, member: FamilyMember

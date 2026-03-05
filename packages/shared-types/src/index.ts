@@ -125,6 +125,7 @@ export type ItemResponse = {
   due_date: string | null;
   completed_at: string | null;
   completed_by: string | null;
+  completed_by_username: string | null;
   created_at: string;
   attachments: AttachmentResponse[];
 };
