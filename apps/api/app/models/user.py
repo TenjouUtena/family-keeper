@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
     from app.models.family_member import FamilyMember
+    from app.models.google_oauth import GoogleOAuthCredential
     from app.models.refresh_token import RefreshToken
 
 from app.database import Base
@@ -35,4 +36,7 @@ class User(Base):
     )
     family_memberships: Mapped[list[FamilyMember]] = relationship(
         "FamilyMember", back_populates="user", cascade="all, delete-orphan"
+    )
+    google_oauth: Mapped[GoogleOAuthCredential | None] = relationship(
+        "GoogleOAuthCredential", back_populates="user", cascade="all, delete-orphan", uselist=False
     )

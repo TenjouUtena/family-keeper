@@ -1,9 +1,15 @@
+from app.schemas.ai import ExtractedItem, ImageToListResponse
 from app.schemas.auth import (
     LoginRequest,
     MessageResponse,
     RefreshRequest,
     RegisterRequest,
     TokenResponse,
+)
+from app.schemas.calendar import (
+    CalendarEventResponse,
+    CalendarEventsResponse,
+    GoogleOAuthStatusResponse,
 )
 from app.schemas.family import (
     CreateFamilyRequest,
@@ -57,4 +63,9 @@ __all__ = [
     "ReorderItemsRequest",
     "UpdateItemRequest",
     "UpdateListRequest",
+    "ExtractedItem",
+    "ImageToListResponse",
+    "CalendarEventResponse",
+    "CalendarEventsResponse",
+    "GoogleOAuthStatusResponse",
 ]

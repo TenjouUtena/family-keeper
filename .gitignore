@@ -46,3 +46,6 @@ Thumbs.db
 # Testing
 playwright-report/
 test-results/
+
+
+.private*

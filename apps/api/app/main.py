@@ -1,11 +1,15 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Route app loggers through uvicorn's handler so they appear in stdout
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(message)s")
+
 from app.config import settings
 from app.core.redis import close_redis, get_redis
-from app.routers import auth, families, health, lists, users
+from app.routers import ai, auth, calendar, families, health, lists, users
 
 
 @asynccontextmanager
@@ -33,3 +37,5 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(families.router)
 app.include_router(lists.router)
+app.include_router(ai.router)
+app.include_router(calendar.router)

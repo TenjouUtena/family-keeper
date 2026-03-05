@@ -24,6 +24,17 @@ class Settings(BaseSettings):
     R2_BUCKET_NAME: str = "family-keeper"
     R2_PUBLIC_URL: str = ""  # optional custom domain
 
+    # AI (Phase 5)
+    ANTHROPIC_API_KEY: str = ""
+    AI_RATE_LIMIT_PER_HOUR: int = 10
+
+    # Google Calendar (Phase 5)
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8000/v1/calendar/auth/google/callback"
+    FERNET_KEY: str = ""
+    FRONTEND_URL: str = "http://localhost:3000"
+
     # CORS
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
 

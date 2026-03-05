@@ -1,6 +1,7 @@
 from app.models.family import Family
 from app.models.family_list import FamilyList, ListType
 from app.models.family_member import FamilyMember, FamilyRole
+from app.models.google_oauth import GoogleOAuthCredential
 from app.models.invite_code import InviteCode
 from app.models.item_attachment import ItemAttachment
 from app.models.list_item import ItemStatus, ListItem
@@ -19,4 +20,5 @@ __all__ = [
     "ListItem",
     "ItemStatus",
     "ItemAttachment",
+    "GoogleOAuthCredential",
 ]

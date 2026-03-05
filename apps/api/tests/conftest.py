@@ -1,11 +1,17 @@
 import pytest
+from cryptography.fernet import Fernet
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.core.security import create_access_token, hash_password
-from app.database import Base, get_db
-from app.main import app
-from app.models import User
+import app.config as _config_module
+
+# Set FERNET_KEY before app import (CalendarService reads it at instantiation)
+_config_module.settings.FERNET_KEY = Fernet.generate_key().decode()
+
+from app.core.security import create_access_token, hash_password  # noqa: E402
+from app.database import Base, get_db  # noqa: E402
+from app.main import app  # noqa: E402
+from app.models import User  # noqa: E402
 
 # In-memory SQLite for tests
 TEST_DATABASE_URL = "sqlite+aiosqlite:///file::memory:?cache=shared&uri=true"

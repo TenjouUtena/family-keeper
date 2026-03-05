@@ -147,3 +147,37 @@ export type UploadUrlResponse = {
   storage_key: string;
   expires_in: number;
 };
+
+// AI (Phase 5)
+export type ExtractedItem = {
+  content: string;
+  notes: string | null;
+};
+
+export type ImageToListResponse = {
+  items: ExtractedItem[];
+  input_tokens: number;
+  output_tokens: number;
+};
+
+// Calendar (Phase 5)
+export type CalendarEvent = {
+  id: string;
+  title: string;
+  start: string;
+  end: string | null;
+  all_day: boolean;
+  member_name: string;
+  color: string;
+};
+
+export type CalendarEventsResponse = {
+  events: CalendarEvent[];
+  connected_members: number;
+  total_members: number;
+};
+
+export type GoogleOAuthStatus = {
+  connected: boolean;
+  scope: string | null;
+};

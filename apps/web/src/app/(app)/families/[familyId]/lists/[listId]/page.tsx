@@ -6,6 +6,7 @@ import { useState } from "react";
 
 import type { ItemResponse } from "@family-keeper/shared-types";
 
+import { AICaptureButton } from "@/components/ai-capture-button";
 import { AttachmentThumbnail } from "@/components/attachment-thumbnail";
 import { PhotoUpload } from "@/components/photo-upload";
 import { Button } from "@/components/ui/button";
@@ -83,7 +84,7 @@ export default function ListDetailPage() {
       </div>
 
       {/* Add item form */}
-      <form onSubmit={handleAddItem} className="mb-6 flex gap-2">
+      <form onSubmit={handleAddItem} className="mb-4 flex gap-2">
         <Input
           placeholder="Add an item..."
           value={newItem}
@@ -98,6 +99,15 @@ export default function ListDetailPage() {
           Add
         </Button>
       </form>
+
+      {/* AI Scan */}
+      <div className="mb-6">
+        <AICaptureButton
+          familyId={familyId}
+          listId={listId}
+          listType={list.list_type}
+        />
+      </div>
 
       {/* Pending items */}
       {pendingItems.length === 0 && doneItems.length === 0 ? (
