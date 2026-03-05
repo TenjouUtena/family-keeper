@@ -86,3 +86,63 @@ export type InviteCodeResponse = {
 export type JoinFamilyRequest = {
   code: string;
 };
+
+// Lists
+export type ListResponse = {
+  id: string;
+  family_id: string;
+  name: string;
+  list_type: "todo" | "grocery" | "chores" | "custom";
+  visible_to_role: string | null;
+  editable_by_role: string | null;
+  require_photo_completion: boolean;
+  is_archived: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  item_count: number;
+};
+
+export type AttachmentResponse = {
+  id: string;
+  item_id: string;
+  storage_key: string;
+  filename: string;
+  mime_type: string;
+  file_size_bytes: number;
+  is_completion_photo: boolean;
+  created_at: string;
+};
+
+export type ItemResponse = {
+  id: string;
+  list_id: string;
+  content: string;
+  notes: string | null;
+  status: "pending" | "in_progress" | "done";
+  position: number;
+  assigned_to: string | null;
+  due_date: string | null;
+  completed_at: string | null;
+  completed_by: string | null;
+  created_at: string;
+  attachments: AttachmentResponse[];
+};
+
+export type ListDetailResponse = ListResponse & {
+  items: ItemResponse[];
+};
+
+export type UploadUrlRequest = {
+  filename: string;
+  mime_type: string;
+  file_size_bytes: number;
+  is_completion_photo?: boolean;
+};
+
+export type UploadUrlResponse = {
+  upload_url: string;
+  attachment_id: string;
+  storage_key: string;
+  expires_in: number;
+};

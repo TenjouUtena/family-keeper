@@ -66,6 +66,30 @@ export default function FamilyHomePage() {
         </div>
       </div>
 
+      {/* Quick Actions */}
+      <div className="mb-6">
+        <Link href={`/families/${familyId}/lists`}>
+          <Card className="transition-shadow hover:shadow-md">
+            <CardContent className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100">
+                  <svg className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="font-semibold text-gray-900">Lists</h2>
+                  <p className="text-sm text-gray-500">Grocery, to-do, chores</p>
+                </div>
+              </div>
+              <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
+
       {/* Members */}
       <Card className="mb-6">
         <CardHeader className="flex flex-row items-center justify-between">

@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.core.redis import close_redis, get_redis
-from app.routers import auth, families, health, users
+from app.routers import auth, families, health, lists, users
 
 
 @asynccontextmanager
@@ -32,3 +32,4 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(families.router)
+app.include_router(lists.router)

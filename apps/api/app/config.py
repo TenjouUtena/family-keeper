@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
+    # Cloudflare R2
+    R2_ACCOUNT_ID: str = ""
+    R2_ACCESS_KEY_ID: str = ""
+    R2_SECRET_ACCESS_KEY: str = ""
+    R2_BUCKET_NAME: str = "family-keeper"
+    R2_PUBLIC_URL: str = ""  # optional custom domain
+
     # CORS
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
 
