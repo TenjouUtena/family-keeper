@@ -22,5 +22,13 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class GoogleAuthRequest(BaseModel):
+    code: str
+
+
+class GoogleAuthUrlResponse(BaseModel):
+    url: str
+
+
 class MessageResponse(BaseModel):
     message: str

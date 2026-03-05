@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.middleware.rate_limit import rate_limit_auth
 from app.schemas import (
+    GoogleAuthRequest,
+    GoogleAuthUrlResponse,
     LoginRequest,
     MessageResponse,
     RefreshRequest,
@@ -35,6 +37,19 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
 async def refresh(data: RefreshRequest, db: AsyncSession = Depends(get_db)):
     service = AuthService(db)
     tokens = await service.refresh(data.refresh_token)
+    return tokens
+
+
+@router.get("/google", response_model=GoogleAuthUrlResponse)
+async def google_auth_url():
+    url = AuthService.build_google_auth_url()
+    return GoogleAuthUrlResponse(url=url)
+
+
+@router.post("/google/callback", response_model=TokenResponse)
+async def google_auth_callback(data: GoogleAuthRequest, db: AsyncSession = Depends(get_db)):
+    service = AuthService(db)
+    _, tokens = await service.google_auth(data.code)
     return tokens
 
 

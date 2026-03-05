@@ -1,5 +1,7 @@
 from app.schemas.ai import ExtractedItem, ImageToListResponse
 from app.schemas.auth import (
+    GoogleAuthRequest,
+    GoogleAuthUrlResponse,
     LoginRequest,
     MessageResponse,
     RefreshRequest,
@@ -37,6 +39,8 @@ from app.schemas.lists import (
 from app.schemas.user import UserResponse, UserUpdateRequest
 
 __all__ = [
+    "GoogleAuthRequest",
+    "GoogleAuthUrlResponse",
     "LoginRequest",
     "MessageResponse",
     "RefreshRequest",

@@ -1,4 +1,6 @@
 import type {
+  GoogleAuthCallbackRequest,
+  GoogleAuthUrlResponse,
   LoginRequest,
   RegisterRequest,
   TokenResponse,
@@ -44,6 +46,28 @@ export function useAuth() {
     },
   });
 
+  const googleAuthMutation = useMutation({
+    mutationFn: (data: GoogleAuthCallbackRequest) =>
+      apiClient<TokenResponse>("/v1/auth/google/callback", {
+        method: "POST",
+        body: data,
+        skipAuth: true,
+      }),
+    onSuccess: async (tokens) => {
+      setTokens(tokens.access_token, tokens.refresh_token);
+      const user = await apiClient<UserResponse>("/v1/users/me");
+      setUser(user);
+      router.push("/dashboard");
+    },
+  });
+
+  const getGoogleAuthUrl = async () => {
+    const data = await apiClient<GoogleAuthUrlResponse>("/v1/auth/google", {
+      skipAuth: true,
+    });
+    window.location.href = data.url;
+  };
+
   const logoutMutation = useMutation({
     mutationFn: () =>
       apiClient<{ message: string }>("/v1/auth/logout", { method: "POST" }),
@@ -53,5 +77,5 @@ export function useAuth() {
     },
   });
 
-  return { loginMutation, registerMutation, logoutMutation };
+  return { loginMutation, registerMutation, googleAuthMutation, getGoogleAuthUrl, logoutMutation };
 }

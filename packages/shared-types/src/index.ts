@@ -24,6 +24,14 @@ export type LoginRequest = {
   password: string;
 };
 
+export type GoogleAuthUrlResponse = {
+  url: string;
+};
+
+export type GoogleAuthCallbackRequest = {
+  code: string;
+};
+
 // User
 export type UserResponse = {
   id: string;

@@ -35,23 +35,34 @@ Sentry (backend + frontend, gated on DSN), security middleware (X-Content-Type-O
 
 ## Remaining Phases
 
-### Phase 8 — Offline, Real-Time & Notifications
+### Phase 8 — Offline Banner & SSE Real-Time ✓
 
-**Goal:** Genuine mobile experience with offline support, real-time updates, and push notifications.
+**Goal:** Replace 5s polling with real-time SSE updates, add offline awareness.
 
-1. **Offline support**
-   - `OfflineBanner` component when `navigator.onLine = false`
-   - Queued mutations sync on reconnect (optimistic updates via TanStack Query)
-2. **Server-Sent Events** (upgrade from 5s polling)
-   - `GET /v1/families/{familyId}/lists/{listId}/stream` — SSE endpoint
-   - Redis Pub/Sub as event bus: list item changes → SSE clients notified
-   - Frontend: TanStack Query cache invalidation on SSE events
-3. **Push notifications** (Web Push Protocol + VAPID)
-   - `push_subscriptions` table + Alembic migration
-   - Backend: `pywebpush` library
-   - Triggers: chore assigned, chore completed (notify parent), new grocery item added
-   - Frontend: permission request, subscription registration
-4. **iOS-specific fixes** — splash screens, test on iOS Safari
+1. **Offline banner** — `OfflineBanner` component (sticky amber bar when `navigator.onLine = false`)
+2. **Redis Pub/Sub helper** — `pubsub.py` with `publish_list_event` (fire-and-forget on shared connection) and `subscribe_list` (dedicated connection per SSE client)
+3. **Event publishing** — All list mutations (add/update/delete/reorder items, update list) publish events after commit
+4. **SSE endpoint** — `GET /v1/families/{familyId}/lists/{listId}/stream?token=...` with token-based auth (EventSource can't send headers), 30s heartbeat, Redis subscription cleanup on disconnect
+5. **Frontend SSE hook** — `useListSSE` with EventSource, exponential backoff (max 5 retries), invalidates React Query cache on events
+6. **Polling fallback** — `useListDetail` accepts optional `refetchInterval`; polls at 5s only when SSE is disconnected
+7. **Service worker exclusion** — `NetworkOnly` rule for `/stream` paths before API cache rule
+
+---
+
+### Phase 8.5 — Push Notifications (pending)
+
+**Goal:** Native push notifications for key family events.
+
+1. **VAPID key pair** — generate and store as env vars (`VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_MAILTO`)
+2. **Database** — `push_subscriptions` table + Alembic migration (user_id, endpoint, p256dh, auth, created_at)
+3. **Backend** — `pywebpush` library, notification service
+4. **API endpoints**
+   - `POST /v1/push/subscribe` — register push subscription
+   - `DELETE /v1/push/subscribe` — unregister
+   - `GET /v1/push/vapid-key` — public VAPID key for frontend
+5. **Triggers** — chore assigned to child, chore completed (notify parent), new grocery item added
+6. **Frontend** — permission request flow, subscription registration, SW push event handler
+7. **iOS considerations** — iOS 16.4+ supports Web Push in PWA mode
 
 ### Phase 9 — Comprehensive Testing & Go-Forward
 
