@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -28,6 +29,7 @@ from app.schemas.lists import (
     UpdateItemRequest,
     UpdateListRequest,
 )
+from app.services.push_service import notify_in_background
 
 POSITION_GAP = 100
 
@@ -335,6 +337,19 @@ class ListService:
             await self.db.refresh(item)
         await publish_list_event(list_id, "items_created", {"count": len(items)})
 
+        # Push: notify family about new grocery items
+        if family_list.list_type == ListType.GROCERY:
+            asyncio.create_task(
+                notify_in_background(
+                    self.db,
+                    family_id=family_list.family_id,
+                    title=f"{family_list.name}",
+                    body=f"{len(items)} new item{'s' if len(items) > 1 else ''} added",
+                    url=f"/families/{family_list.family_id}/lists/{list_id}",
+                    exclude_user_id=member.user_id,
+                )
+            )
+
         return [
             ItemResponse(
                 id=item.id,
@@ -408,12 +423,46 @@ class ListService:
                 update_data["completed_at"] = None
                 update_data["completed_by"] = None
 
+        # Track changes for push notifications
+        old_assigned_to = item.assigned_to
+        was_done = item.status == ItemStatus.DONE
+
         for field, value in update_data.items():
             setattr(item, field, value)
 
         await self.db.commit()
         await self.db.refresh(item)
         await publish_list_event(list_id, "item_updated", {"item_id": str(item.id)})
+
+        # Push: notify on assignment change
+        if (
+            "assigned_to" in update_data
+            and item.assigned_to
+            and item.assigned_to != user.id
+            and item.assigned_to != old_assigned_to
+        ):
+            asyncio.create_task(
+                notify_in_background(
+                    self.db,
+                    user_id=item.assigned_to,
+                    title=f"{family_list.name}",
+                    body=f'"{item.content}" assigned to you',
+                    url=f"/families/{family_list.family_id}/lists/{list_id}",
+                )
+            )
+
+        # Push: notify family when item completed
+        if not was_done and item.status == ItemStatus.DONE:
+            asyncio.create_task(
+                notify_in_background(
+                    self.db,
+                    family_id=family_list.family_id,
+                    title=f"{family_list.name}",
+                    body=f'"{item.content}" completed',
+                    url=f"/families/{family_list.family_id}/lists/{list_id}",
+                    exclude_user_id=user.id,
+                )
+            )
 
         # Load attachments
         att_result = await self.db.execute(

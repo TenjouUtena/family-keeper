@@ -62,6 +62,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   hydrate: async () => {
+    // Guard against double-invocation (React Strict Mode runs effects twice)
+    if (get().isHydrated) return;
+
+    // If already authenticated in-memory (e.g. just registered/logged in), skip refresh
+    if (get().isAuthenticated && get().accessToken) {
+      if (!get().user) {
+        try {
+          const userRes = await fetch(`${API_BASE_URL}/v1/users/me`, {
+            headers: { Authorization: `Bearer ${get().accessToken}` },
+          });
+          if (userRes.ok) {
+            const user: UserResponse = await userRes.json();
+            set({ user });
+          }
+        } catch {
+          // User profile fetch failed, but tokens are valid
+        }
+      }
+      set({ isHydrated: true });
+      return;
+    }
+
     const refresh = localStorage.getItem("refresh_token");
     if (refresh) {
       set({ refreshToken: refresh });

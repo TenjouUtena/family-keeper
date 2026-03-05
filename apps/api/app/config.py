@@ -36,6 +36,14 @@ class Settings(BaseSettings):
     FERNET_KEY: str = ""
     FRONTEND_URL: str = "http://localhost:3000"
 
+    # Push Notifications (VAPID)
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_MAILTO: str = ""
+
+    # Rate limiting
+    RATE_LIMIT_DISABLED: bool = False
+
     # Observability
     SENTRY_DSN: str = ""
     ENVIRONMENT: str = "development"

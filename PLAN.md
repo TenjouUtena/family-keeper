@@ -14,7 +14,7 @@ Family Keeper is a family management PWA — shared lists (grocery, todo, chores
 Monorepo (pnpm + Turborepo), Docker Compose (Postgres 16 + Redis 7), FastAPI skeleton, Next.js 15 + React 19 + Tailwind v4, CI pipeline, health check.
 
 ### Phase 2 — Authentication & User Model ✓
-JWT auth (access 15min + refresh 30d), bcrypt (cost 12), Redis blacklist, rate limiting (10/min/IP), register/login/refresh/logout endpoints, Zustand auth store, protected routes.
+JWT auth (access 15min + refresh 30d), bcrypt (cost 12), Redis blacklist, rate limiting (10/min/IP), register/login/refresh/logout endpoints, Zustand auth store, protected routes. Google OAuth sign-in (openid email profile scope, auto-link by email, password-less accounts for Google-only users). Landing page with conditional Dashboard/Sign-in links.
 
 ### Phase 3 — Family Core ✓
 Families, members, roles (parent/child, renameable), invite codes (8-char, time/use-limited), RBAC via FastAPI dependencies, family CRUD, member management, bottom nav.
@@ -31,38 +31,15 @@ Serwist service worker (NetworkOnly auth, NetworkFirst API, CacheFirst images, S
 ### Phase 7 — Hardening & Deployment ✓
 Sentry (backend + frontend, gated on DSN), security middleware (X-Content-Type-Options, X-Frame-Options, HSTS, Referrer-Policy, X-Request-ID), vercel.json (security headers + CSP), railway.toml (health check, release command), deploy.yml (CI gate).
 
+### Phase 8 — Offline Banner & SSE Real-Time ✓
+OfflineBanner component, Redis Pub/Sub (`publish_list_event` + `subscribe_list`), SSE endpoint with token auth + 30s heartbeat, `useListSSE` hook with exponential backoff, 5s polling fallback, SW `NetworkOnly` for `/stream`.
+
+### Phase 8.5 — Push Notifications ✓
+VAPID key pair (env vars), `push_subscriptions` table, `pywebpush` + `PushService` (subscribe, send_to_user/family, 410 cleanup), API endpoints (vapid-key, subscribe, unsubscribe), triggers on item assignment/completion/grocery adds (fire-and-forget), `usePushNotifications` hook, `PushPermissionBanner`, SW push + notificationclick handlers. 109 backend tests.
+
 ---
 
 ## Remaining Phases
-
-### Phase 8 — Offline Banner & SSE Real-Time ✓
-
-**Goal:** Replace 5s polling with real-time SSE updates, add offline awareness.
-
-1. **Offline banner** — `OfflineBanner` component (sticky amber bar when `navigator.onLine = false`)
-2. **Redis Pub/Sub helper** — `pubsub.py` with `publish_list_event` (fire-and-forget on shared connection) and `subscribe_list` (dedicated connection per SSE client)
-3. **Event publishing** — All list mutations (add/update/delete/reorder items, update list) publish events after commit
-4. **SSE endpoint** — `GET /v1/families/{familyId}/lists/{listId}/stream?token=...` with token-based auth (EventSource can't send headers), 30s heartbeat, Redis subscription cleanup on disconnect
-5. **Frontend SSE hook** — `useListSSE` with EventSource, exponential backoff (max 5 retries), invalidates React Query cache on events
-6. **Polling fallback** — `useListDetail` accepts optional `refetchInterval`; polls at 5s only when SSE is disconnected
-7. **Service worker exclusion** — `NetworkOnly` rule for `/stream` paths before API cache rule
-
----
-
-### Phase 8.5 — Push Notifications (pending)
-
-**Goal:** Native push notifications for key family events.
-
-1. **VAPID key pair** — generate and store as env vars (`VAPID_PRIVATE_KEY`, `VAPID_PUBLIC_KEY`, `VAPID_MAILTO`)
-2. **Database** — `push_subscriptions` table + Alembic migration (user_id, endpoint, p256dh, auth, created_at)
-3. **Backend** — `pywebpush` library, notification service
-4. **API endpoints**
-   - `POST /v1/push/subscribe` — register push subscription
-   - `DELETE /v1/push/subscribe` — unregister
-   - `GET /v1/push/vapid-key` — public VAPID key for frontend
-5. **Triggers** — chore assigned to child, chore completed (notify parent), new grocery item added
-6. **Frontend** — permission request flow, subscription registration, SW push event handler
-7. **iOS considerations** — iOS 16.4+ supports Web Push in PWA mode
 
 ### Phase 9 — Comprehensive Testing & Go-Forward
 

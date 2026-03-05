@@ -2,6 +2,7 @@ import time
 
 from fastapi import HTTPException, Request, status
 
+from app.config import settings
 from app.core.redis import get_redis
 
 RATE_LIMIT_WINDOW = 60  # seconds
@@ -10,6 +11,8 @@ RATE_LIMIT_MAX_REQUESTS = 10
 
 async def rate_limit_auth(request: Request) -> None:
     """Sliding window rate limiter: 10 requests per minute per IP on auth endpoints."""
+    if settings.RATE_LIMIT_DISABLED:
+        return
     redis = await get_redis()
     ip = request.client.host if request.client else "unknown"
     key = f"ratelimit:auth:{ip}"
