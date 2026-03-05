@@ -1,10 +1,17 @@
+import asyncio
+import json
+import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_current_user
 from app.core.permissions import RequireFamilyMember
+from app.core.pubsub import subscribe_list
+from app.core.security import JWTError, decode_token, is_token_blacklisted
 from app.database import get_db
 from app.models import FamilyMember, ItemAttachment, User
 from app.schemas import MessageResponse
@@ -23,6 +30,8 @@ from app.schemas.lists import (
 )
 from app.services.list_service import ListService
 from app.services.storage_service import StorageService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["lists"])
 
@@ -231,3 +240,105 @@ async def get_attachment_url(
     service = StorageService(db)
     url = await service.get_download_url(attachment.storage_key)
     return {"url": url}
+
+
+# --- SSE stream endpoint ---
+
+HEARTBEAT_INTERVAL = 30
+
+
+@router.get("/v1/families/{family_id}/lists/{list_id}/stream")
+async def stream_list_events(
+    family_id: UUID,
+    list_id: UUID,
+    request: Request,
+    token: str = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """SSE endpoint for real-time list updates.
+
+    Auth via query param because EventSource cannot send headers.
+    """
+    # Validate token
+    try:
+        payload = decode_token(token)
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    if payload.get("type") != "access":
+        raise HTTPException(status_code=401, detail="Invalid token type")
+
+    jti = payload.get("jti")
+    if jti and await is_token_blacklisted(jti):
+        raise HTTPException(status_code=401, detail="Token revoked")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Verify family membership
+    result = await db.execute(
+        select(FamilyMember).where(
+            FamilyMember.family_id == family_id,
+            FamilyMember.user_id == UUID(user_id),
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=403, detail="Not a member of this family")
+
+    async def event_generator():
+        pubsub = None
+        redis_conn = None
+        try:
+            pubsub, redis_conn = await subscribe_list(list_id)
+
+            while True:
+                if await request.is_disconnected():
+                    break
+
+                try:
+                    message = await asyncio.wait_for(
+                        pubsub.get_message(
+                            ignore_subscribe_messages=True, timeout=1.0
+                        ),
+                        timeout=HEARTBEAT_INTERVAL,
+                    )
+                except TimeoutError:
+                    # Send heartbeat
+                    yield ": heartbeat\n\n"
+                    continue
+
+                if message and message["type"] == "message":
+                    data = message["data"]
+                    try:
+                        parsed = json.loads(data)
+                        event_type = parsed.get("event", "update")
+                        yield f"event: {event_type}\ndata: {data}\n\n"
+                    except (json.JSONDecodeError, TypeError):
+                        yield f"event: update\ndata: {data}\n\n"
+        except Exception:
+            logger.warning(
+                "SSE stream error for list %s", list_id, exc_info=True
+            )
+        finally:
+            if pubsub:
+                try:
+                    await pubsub.unsubscribe(f"list:{list_id}")
+                    await pubsub.aclose()
+                except Exception:
+                    pass
+            if redis_conn:
+                try:
+                    await redis_conn.aclose()
+                except Exception:
+                    pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

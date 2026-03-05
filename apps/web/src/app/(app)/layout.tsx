@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { InstallPrompt } from "@/components/install-prompt";
+import { OfflineBanner } from "@/components/offline-banner";
 import { BottomNav } from "@/components/ui/bottom-nav";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -35,6 +36,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-16">
+      <OfflineBanner />
       {children}
       <InstallPrompt />
       <BottomNav />

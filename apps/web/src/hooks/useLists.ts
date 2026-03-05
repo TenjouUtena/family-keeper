@@ -20,7 +20,11 @@ export function useLists(familyId: string) {
   });
 }
 
-export function useListDetail(familyId: string, listId: string) {
+export function useListDetail(
+  familyId: string,
+  listId: string,
+  refetchInterval: number | false = false,
+) {
   return useQuery({
     queryKey: ["lists", familyId, listId],
     queryFn: () =>
@@ -28,7 +32,7 @@ export function useListDetail(familyId: string, listId: string) {
         `/v1/families/${familyId}/lists/${listId}`,
       ),
     enabled: !!familyId && !!listId,
-    refetchInterval: 5000, // polling every 5s (Phase 4 real-time v1)
+    refetchInterval,
   });
 }
 

@@ -19,6 +19,7 @@ import {
   useListDetail,
   useUpdateItem,
 } from "@/hooks/useLists";
+import { useListSSE } from "@/hooks/useListSSE";
 import { useAuthStore } from "@/stores/auth-store";
 
 export default function ListDetailPage() {
@@ -26,7 +27,12 @@ export default function ListDetailPage() {
     familyId: string;
     listId: string;
   }>();
-  const { data: list, isLoading } = useListDetail(familyId, listId);
+  const { isConnected } = useListSSE(familyId, listId);
+  const { data: list, isLoading } = useListDetail(
+    familyId,
+    listId,
+    isConnected ? false : 5000,
+  );
   const { data: family } = useFamily(familyId);
   const user = useAuthStore((s) => s.user);
   const addItems = useAddItems(familyId, listId);

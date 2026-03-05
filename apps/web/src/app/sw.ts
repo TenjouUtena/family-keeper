@@ -28,6 +28,11 @@ const serwist = new Serwist({
       matcher: /\/v1\/auth\/.*/,
       handler: new NetworkOnly(),
     },
+    // SSE streams: never cache
+    {
+      matcher: /\/stream/,
+      handler: new NetworkOnly(),
+    },
     // API responses: network first, fall back to cache
     {
       matcher: /\/v1\/.*/,

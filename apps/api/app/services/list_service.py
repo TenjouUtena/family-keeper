@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.pubsub import publish_list_event
 from app.models import (
     FamilyList,
     FamilyMember,
@@ -227,6 +228,7 @@ class ListService:
 
         await self.db.commit()
         await self.db.refresh(family_list)
+        await publish_list_event(list_id, "list_updated")
 
         count_result = await self.db.execute(
             select(func.count()).where(ListItem.list_id == list_id)
@@ -281,6 +283,7 @@ class ListService:
         self.db.add(item)
         await self.db.commit()
         await self.db.refresh(item)
+        await publish_list_event(list_id, "item_created", {"item_id": str(item.id)})
 
         return ItemResponse(
             id=item.id,
@@ -330,6 +333,7 @@ class ListService:
         await self.db.commit()
         for item in items:
             await self.db.refresh(item)
+        await publish_list_event(list_id, "items_created", {"count": len(items)})
 
         return [
             ItemResponse(
@@ -409,6 +413,7 @@ class ListService:
 
         await self.db.commit()
         await self.db.refresh(item)
+        await publish_list_event(list_id, "item_updated", {"item_id": str(item.id)})
 
         # Load attachments
         att_result = await self.db.execute(
@@ -453,6 +458,7 @@ class ListService:
 
         await self.db.delete(item)
         await self.db.commit()
+        await publish_list_event(list_id, "item_deleted", {"item_id": str(item_id)})
 
     async def reorder_items(
         self,
@@ -468,6 +474,7 @@ class ListService:
                 item.position = reorder.position
 
         await self.db.commit()
+        await publish_list_event(list_id, "items_reordered")
 
         result = await self.db.execute(
             select(ListItem)
