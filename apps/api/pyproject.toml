@@ -29,6 +29,7 @@ google-auth = "^2.37"
 google-auth-oauthlib = "^1.2"
 google-api-python-client = "^2.160"
 pillow = "^12.1.1"
+sentry-sdk = {extras = ["fastapi"], version = "^2.54.0"}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3"

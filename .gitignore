@@ -49,3 +49,7 @@ test-results/
 
 
 .private*
+
+# Serwist generated service worker
+apps/web/public/sw*
+apps/web/public/swe-worker*

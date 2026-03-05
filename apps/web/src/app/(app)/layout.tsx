@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
+import { InstallPrompt } from "@/components/install-prompt";
 import { BottomNav } from "@/components/ui/bottom-nav";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -35,6 +36,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-gray-50 pb-16">
       {children}
+      <InstallPrompt />
       <BottomNav />
     </div>
   );

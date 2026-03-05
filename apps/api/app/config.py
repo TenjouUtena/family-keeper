@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     FERNET_KEY: str = ""
     FRONTEND_URL: str = "http://localhost:3000"
 
+    # Observability
+    SENTRY_DSN: str = ""
+    ENVIRONMENT: str = "development"
+
     # CORS
     ALLOWED_ORIGINS: list[str] = ["http://localhost:3000"]
 
