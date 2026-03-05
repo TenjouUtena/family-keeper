@@ -1,0 +1,39 @@
+{
+  "name": "@family-keeper/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^15.1",
+    "react": "^19.0",
+    "react-dom": "^19.0",
+    "@tanstack/react-query": "^5.62",
+    "zustand": "^5.0",
+    "zod": "^3.24"
+  },
+  "devDependencies": {
+    "typescript": "^5.7",
+    "@types/react": "^19.0",
+    "@types/react-dom": "^19.0",
+    "tailwindcss": "^4.0",
+    "@tailwindcss/postcss": "^4.0",
+    "postcss": "^8.4",
+    "vitest": "^2.1",
+    "@vitejs/plugin-react": "^4.3",
+    "jsdom": "^25.0",
+    "@testing-library/react": "^16.1",
+    "@testing-library/jest-dom": "^6.6",
+    "@playwright/test": "^1.49",
+    "eslint": "^9.17",
+    "eslint-config-next": "^15.1",
+    "@eslint/eslintrc": "^3.2"
+  }
+}
