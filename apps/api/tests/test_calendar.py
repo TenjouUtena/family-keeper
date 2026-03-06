@@ -14,6 +14,7 @@ from app.models import User
 from app.models.family import Family
 from app.models.family_member import FamilyMember, FamilyRole
 from app.models.google_oauth import GoogleOAuthCredential
+from app.models.shared_calendar import SharedCalendar
 from app.services.calendar_service import CalendarService
 
 pytestmark = pytest.mark.anyio
@@ -622,3 +623,366 @@ async def test_family_events_cached(db: AsyncSession, test_user: User):
     assert len(result["events"]) == 1
     assert result["events"][0]["title"] == "Cached Event"
     assert result["connected_members"] == 1
+
+
+# --- Google Calendar List ---
+
+
+@patch("app.services.calendar_service.httpx.AsyncClient")
+async def test_list_google_calendars(
+    mock_httpx_cls, client: AsyncClient, auth_headers: dict, test_user: User, db: AsyncSession
+):
+    """List all Google calendars for a connected user."""
+    await _create_cred(db, test_user, expired=False)
+
+    mock_httpx_instance = AsyncMock()
+    mock_httpx_instance.__aenter__ = AsyncMock(return_value=mock_httpx_instance)
+    mock_httpx_instance.__aexit__ = AsyncMock(return_value=False)
+    mock_httpx_instance.get = AsyncMock(
+        return_value=AsyncMock(
+            status_code=200,
+            json=lambda: {
+                "items": [
+                    {
+                        "id": "primary@gmail.com",
+                        "summary": "My Calendar",
+                        "primary": True,
+                        "backgroundColor": "#4F46E5",
+                    },
+                    {
+                        "id": "work@group.calendar.google.com",
+                        "summary": "Work",
+                        "backgroundColor": "#059669",
+                    },
+                ]
+            },
+        )
+    )
+    mock_httpx_cls.return_value = mock_httpx_instance
+
+    resp = await client.get(
+        "/v1/calendar/google/calendars",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["calendars"]) == 2
+    assert data["calendars"][0]["summary"] == "My Calendar"
+    assert data["calendars"][0]["primary"] is True
+    assert data["calendars"][1]["summary"] == "Work"
+    assert data["calendars"][1]["primary"] is False
+
+
+async def test_list_google_calendars_not_connected(
+    client: AsyncClient, auth_headers: dict
+):
+    """Listing calendars without Google connected returns 400."""
+    resp = await client.get(
+        "/v1/calendar/google/calendars",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 400
+
+
+# --- Member Calendar Settings ---
+
+
+async def test_get_member_settings_empty(
+    client: AsyncClient, auth_headers: dict, test_user: User
+):
+    """Get member settings when none exist returns empty list."""
+    fid = await create_family_with_member(client, auth_headers)
+
+    resp = await client.get(
+        f"/v1/calendar/family/{fid}/members/{test_user.id}/settings",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["shared_calendars"] == []
+
+
+async def test_update_and_get_member_settings(
+    client: AsyncClient, auth_headers: dict, test_user: User
+):
+    """Update and then retrieve member calendar settings."""
+    fid = await create_family_with_member(client, auth_headers)
+
+    body = {
+        "shared_calendars": [
+            {
+                "google_calendar_id": "primary@gmail.com",
+                "calendar_name": "My Calendar",
+                "color": "#4F46E5",
+                "is_enabled": True,
+            },
+            {
+                "google_calendar_id": "work@group.calendar.google.com",
+                "calendar_name": "Work",
+                "color": "#059669",
+                "is_enabled": False,
+            },
+        ]
+    }
+
+    resp = await client.put(
+        f"/v1/calendar/family/{fid}/members/me/settings",
+        json=body,
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["shared_calendars"]) == 2
+    assert data["shared_calendars"][0]["calendar_name"] == "My Calendar"
+    assert data["shared_calendars"][0]["is_enabled"] is True
+    assert data["shared_calendars"][1]["calendar_name"] == "Work"
+    assert data["shared_calendars"][1]["is_enabled"] is False
+
+    # Retrieve settings
+    resp2 = await client.get(
+        f"/v1/calendar/family/{fid}/members/{test_user.id}/settings",
+        headers=auth_headers,
+    )
+    assert resp2.status_code == 200
+    assert len(resp2.json()["shared_calendars"]) == 2
+
+
+async def test_update_member_settings_replaces(
+    client: AsyncClient, auth_headers: dict, test_user: User
+):
+    """Updating settings replaces previous entries."""
+    fid = await create_family_with_member(client, auth_headers)
+
+    # First update with 2 calendars
+    await client.put(
+        f"/v1/calendar/family/{fid}/members/me/settings",
+        json={
+            "shared_calendars": [
+                {
+                    "google_calendar_id": "cal1",
+                    "calendar_name": "Cal 1",
+                    "color": "#4F46E5",
+                    "is_enabled": True,
+                },
+                {
+                    "google_calendar_id": "cal2",
+                    "calendar_name": "Cal 2",
+                    "color": "#059669",
+                    "is_enabled": True,
+                },
+            ]
+        },
+        headers=auth_headers,
+    )
+
+    # Second update with only 1 calendar
+    resp = await client.put(
+        f"/v1/calendar/family/{fid}/members/me/settings",
+        json={
+            "shared_calendars": [
+                {
+                    "google_calendar_id": "cal1",
+                    "calendar_name": "Cal 1 Updated",
+                    "color": "#DC2626",
+                    "is_enabled": True,
+                },
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["shared_calendars"]) == 1
+    assert data["shared_calendars"][0]["calendar_name"] == "Cal 1 Updated"
+    assert data["shared_calendars"][0]["color"] == "#DC2626"
+
+
+async def test_member_settings_non_member(
+    client: AsyncClient, auth_headers: dict, db: AsyncSession
+):
+    """Non-member cannot access member settings."""
+    fid = await create_family_with_member(client, auth_headers)
+
+    user2 = User(
+        email="settings_other@example.com",
+        username="settingsother",
+        password_hash=hash_password("password123"),
+    )
+    db.add(user2)
+    await db.commit()
+    await db.refresh(user2)
+    token2, _ = create_access_token(user2.id)
+    headers2 = {"Authorization": f"Bearer {token2}"}
+
+    resp = await client.get(
+        f"/v1/calendar/family/{fid}/members/{user2.id}/settings",
+        headers=headers2,
+    )
+    assert resp.status_code == 403
+
+
+# --- Service-level: get_family_events with shared calendars ---
+
+
+@patch("app.services.calendar_service.httpx.AsyncClient")
+async def test_family_events_with_shared_calendars(
+    mock_httpx_cls, db: AsyncSession, test_user: User
+):
+    """Events are fetched from shared calendars when configured."""
+    family = Family(name="Shared Cal Family")
+    db.add(family)
+    await db.commit()
+    await db.refresh(family)
+
+    member = FamilyMember(
+        family_id=family.id, user_id=test_user.id, role=FamilyRole.PARENT, is_admin=True
+    )
+    db.add(member)
+    await db.commit()
+
+    await _create_cred(db, test_user, expired=False)
+
+    # Configure shared calendars -- one enabled, one disabled
+    sc1 = SharedCalendar(
+        family_id=family.id,
+        user_id=test_user.id,
+        google_calendar_id="primary@gmail.com",
+        calendar_name="Personal",
+        color="#DC2626",
+        is_enabled=True,
+    )
+    sc2 = SharedCalendar(
+        family_id=family.id,
+        user_id=test_user.id,
+        google_calendar_id="work@group.calendar.google.com",
+        calendar_name="Work",
+        color="#059669",
+        is_enabled=False,
+    )
+    db.add_all([sc1, sc2])
+    await db.commit()
+
+    mock_httpx_instance = AsyncMock()
+    mock_httpx_instance.__aenter__ = AsyncMock(return_value=mock_httpx_instance)
+    mock_httpx_instance.__aexit__ = AsyncMock(return_value=False)
+    mock_httpx_instance.get = AsyncMock(
+        return_value=AsyncMock(
+            status_code=200,
+            json=lambda: {
+                "items": [
+                    {
+                        "id": "evt_shared",
+                        "summary": "Personal Event",
+                        "start": {"dateTime": "2026-03-10T09:00:00Z"},
+                        "end": {"dateTime": "2026-03-10T10:00:00Z"},
+                    }
+                ]
+            },
+            raise_for_status=lambda: None,
+        )
+    )
+    mock_httpx_cls.return_value = mock_httpx_instance
+
+    svc = CalendarService(db)
+    start = datetime(2026, 3, 1, tzinfo=UTC)
+    end = datetime(2026, 3, 31, tzinfo=UTC)
+    result = await svc.get_family_events(family.id, start, end)
+
+    # Only the enabled calendar should be fetched
+    assert len(result["events"]) == 1
+    assert result["events"][0]["title"] == "Personal Event"
+    assert result["events"][0]["color"] == "#DC2626"
+    assert result["events"][0]["calendar_name"] == "Personal"
+    assert result["events"][0]["member_name"] == "testuser"
+
+    # Verify the URL used the correct calendar_id
+    call_args = mock_httpx_instance.get.call_args
+    assert "primary@gmail.com" in call_args[0][0]
+
+
+@patch("app.services.calendar_service.httpx.AsyncClient")
+async def test_family_events_fallback_to_primary(
+    mock_httpx_cls, db: AsyncSession, test_user: User
+):
+    """Without shared calendars configured, falls back to primary calendar."""
+    family = Family(name="Fallback Family")
+    db.add(family)
+    await db.commit()
+    await db.refresh(family)
+
+    member = FamilyMember(
+        family_id=family.id, user_id=test_user.id, role=FamilyRole.PARENT, is_admin=True
+    )
+    db.add(member)
+    await db.commit()
+
+    await _create_cred(db, test_user, expired=False)
+
+    mock_httpx_instance = AsyncMock()
+    mock_httpx_instance.__aenter__ = AsyncMock(return_value=mock_httpx_instance)
+    mock_httpx_instance.__aexit__ = AsyncMock(return_value=False)
+    mock_httpx_instance.get = AsyncMock(
+        return_value=AsyncMock(
+            status_code=200,
+            json=lambda: {
+                "items": [
+                    {
+                        "id": "evt_primary",
+                        "summary": "Primary Event",
+                        "start": {"dateTime": "2026-03-10T09:00:00Z"},
+                        "end": {"dateTime": "2026-03-10T10:00:00Z"},
+                    }
+                ]
+            },
+            raise_for_status=lambda: None,
+        )
+    )
+    mock_httpx_cls.return_value = mock_httpx_instance
+
+    svc = CalendarService(db)
+    start = datetime(2026, 3, 1, tzinfo=UTC)
+    end = datetime(2026, 3, 31, tzinfo=UTC)
+    result = await svc.get_family_events(family.id, start, end)
+
+    assert len(result["events"]) == 1
+    assert result["events"][0]["title"] == "Primary Event"
+    # Fallback uses MEMBER_COLORS
+    assert result["events"][0]["color"] == "#4F46E5"
+
+    # Verify the URL used "primary"
+    call_args = mock_httpx_instance.get.call_args
+    assert "/primary/" in call_args[0][0]
+
+
+async def test_update_settings_invalidates_cache(
+    client: AsyncClient, auth_headers: dict, test_user: User, db: AsyncSession
+):
+    """Updating settings clears the Redis cache for the family."""
+    fid = await create_family_with_member(client, auth_headers)
+
+    # Pre-populate cache
+    from app.core.redis import get_redis
+
+    redis = await get_redis()
+    cache_key = f"calendar:{fid}:2026-03-01T00:00:00+00:00:2026-03-31T23:59:59+00:00"
+    cached = {"events": [], "connected_members": 0, "total_members": 1}
+    await redis.setex(cache_key, 300, json.dumps(cached))
+    assert await redis.exists(cache_key)
+
+    # Update settings
+    await client.put(
+        f"/v1/calendar/family/{fid}/members/me/settings",
+        json={
+            "shared_calendars": [
+                {
+                    "google_calendar_id": "cal1",
+                    "calendar_name": "Cal 1",
+                    "color": "#4F46E5",
+                    "is_enabled": True,
+                },
+            ]
+        },
+        headers=auth_headers,
+    )
+
+    # Cache should be cleared
+    assert not await redis.exists(cache_key)

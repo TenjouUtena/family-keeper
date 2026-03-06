@@ -8,7 +8,7 @@ import httpx
 from cryptography.fernet import Fernet
 from fastapi import HTTPException, status
 from jose import jwt
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -16,6 +16,7 @@ from app.core.redis import get_redis
 from app.core.security import ALGORITHM
 from app.models import FamilyMember, User
 from app.models.google_oauth import GoogleOAuthCredential
+from app.models.shared_calendar import SharedCalendar
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +113,93 @@ class CalendarService:
         await self.db.refresh(cred)
         return cred
 
+    async def list_google_calendars(self, user_id: UUID) -> list[dict]:
+        """Fetch all calendars from the user's Google account."""
+        result = await self.db.execute(
+            select(GoogleOAuthCredential).where(GoogleOAuthCredential.user_id == user_id)
+        )
+        cred = result.scalar_one_or_none()
+        if not cred:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Google Calendar not connected",
+            )
+
+        access_token = await self._refresh_token_if_needed(cred)
+
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            if resp.status_code != 200:
+                logger.error("Failed to list Google calendars: %s", resp.text)
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Failed to fetch Google calendar list",
+                )
+            data = resp.json()
+
+        calendars = []
+        for item in data.get("items", []):
+            calendars.append(
+                {
+                    "id": item["id"],
+                    "summary": item.get("summary", "(No name)"),
+                    "primary": item.get("primary", False),
+                    "color": item.get("backgroundColor"),
+                }
+            )
+        return calendars
+
+    async def get_member_settings(self, family_id: UUID, user_id: UUID) -> list[SharedCalendar]:
+        """Get shared calendar settings for a member in a family."""
+        result = await self.db.execute(
+            select(SharedCalendar).where(
+                SharedCalendar.family_id == family_id,
+                SharedCalendar.user_id == user_id,
+            )
+        )
+        return list(result.scalars().all())
+
+    async def update_member_settings(
+        self, family_id: UUID, user_id: UUID, calendars: list[dict]
+    ) -> list[SharedCalendar]:
+        """Replace shared calendar settings for a member in a family."""
+        # Delete existing
+        await self.db.execute(
+            delete(SharedCalendar).where(
+                SharedCalendar.family_id == family_id,
+                SharedCalendar.user_id == user_id,
+            )
+        )
+
+        # Insert new
+        new_rows = []
+        for cal in calendars:
+            row = SharedCalendar(
+                family_id=family_id,
+                user_id=user_id,
+                google_calendar_id=cal["google_calendar_id"],
+                calendar_name=cal["calendar_name"],
+                color=cal["color"],
+                is_enabled=cal["is_enabled"],
+            )
+            self.db.add(row)
+            new_rows.append(row)
+
+        await self.db.commit()
+        for row in new_rows:
+            await self.db.refresh(row)
+
+        # Invalidate calendar cache for this family
+        redis = await get_redis()
+        keys = await redis.keys(f"calendar:{family_id}:*")
+        if keys:
+            await redis.delete(*keys)
+
+        return new_rows
+
     async def get_family_events(
         self, family_id: UUID, start: datetime, end: datetime
     ) -> dict:
@@ -136,23 +224,47 @@ class CalendarService:
         connected = [(member, cred, user) for member, cred, user in rows if cred is not None]
         connected_members = len(connected)
 
-        # Parallel fetch
-        tasks = [
-            self._fetch_member_events(cred, start, end)
-            for _, cred, _ in connected
-        ]
+        # Get shared calendar settings for all connected members
+        shared_cal_result = await self.db.execute(
+            select(SharedCalendar).where(
+                SharedCalendar.family_id == family_id,
+                SharedCalendar.is_enabled.is_(True),
+            )
+        )
+        shared_cals = shared_cal_result.scalars().all()
+        # Group by user_id
+        user_shared_cals: dict[UUID, list[SharedCalendar]] = {}
+        for sc in shared_cals:
+            user_shared_cals.setdefault(sc.user_id, []).append(sc)
+
+        # Build fetch tasks
+        tasks = []
+        task_meta = []  # parallel list of (user, calendar_name, color)
+        for i, (_, cred, user) in enumerate(connected):
+            member_cals = user_shared_cals.get(user.id)
+            if member_cals:
+                # Fetch each shared calendar
+                for sc in member_cals:
+                    tasks.append(self._fetch_member_events(cred, start, end, sc.google_calendar_id))
+                    task_meta.append((user, sc.calendar_name, sc.color))
+            else:
+                # Fallback: fetch primary calendar only
+                fallback_color = MEMBER_COLORS[i % len(MEMBER_COLORS)]
+                tasks.append(self._fetch_member_events(cred, start, end, "primary"))
+                task_meta.append((user, None, fallback_color))
+
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         all_events = []
-        for i, events_or_error in enumerate(results):
+        for idx, events_or_error in enumerate(results):
             if isinstance(events_or_error, Exception):
                 logger.warning("Failed to fetch events for member: %s", events_or_error)
                 continue
-            _, _, user = connected[i]
-            color = MEMBER_COLORS[i % len(MEMBER_COLORS)]
+            user, calendar_name, color = task_meta[idx]
             for event in events_or_error:
                 event["member_name"] = user.username
                 event["color"] = color
+                event["calendar_name"] = calendar_name
             all_events.extend(events_or_error)
 
         all_events.sort(key=lambda e: e.get("start", ""))
@@ -169,7 +281,10 @@ class CalendarService:
 
     async def _refresh_token_if_needed(self, cred: GoogleOAuthCredential) -> str:
         """Return a valid access token, refreshing if expired."""
-        if cred.token_expiry > datetime.now(UTC):
+        expiry = cred.token_expiry
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=UTC)
+        if expiry > datetime.now(UTC):
             return self._decrypt(cred.encrypted_access_token)
 
         refresh_token = self._decrypt(cred.encrypted_refresh_token)
@@ -199,14 +314,19 @@ class CalendarService:
         return new_access
 
     async def _fetch_member_events(
-        self, cred: GoogleOAuthCredential, start: datetime, end: datetime
+        self,
+        cred: GoogleOAuthCredential,
+        start: datetime,
+        end: datetime,
+        calendar_id: str = "primary",
     ) -> list[dict]:
         """Fetch calendar events for one member via Google Calendar REST API."""
         access_token = await self._refresh_token_if_needed(cred)
 
+        url = f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events"
         async with httpx.AsyncClient() as client:
             resp = await client.get(
-                "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+                url,
                 params={
                     "timeMin": start.isoformat(),
                     "timeMax": end.isoformat(),
