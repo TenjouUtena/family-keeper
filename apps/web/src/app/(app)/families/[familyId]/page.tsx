@@ -2,21 +2,29 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { FamilyMemberResponse } from "@family-keeper/shared-types";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { InviteQRCode } from "@/components/invite-qr-code";
 import { useCreateInvite, useFamily } from "@/hooks/useFamilies";
 import { useAuthStore } from "@/stores/auth-store";
+import { useFamilyStore } from "@/stores/family-store";
 
 export default function FamilyHomePage() {
   const { familyId } = useParams<{ familyId: string }>();
   const { data: family, isLoading } = useFamily(familyId);
   const createInvite = useCreateInvite(familyId);
   const currentUser = useAuthStore((s) => s.user);
+  const setCurrentFamily = useFamilyStore((s) => s.setCurrentFamily);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
+
+  // Track the last-visited family as the default
+  useEffect(() => {
+    if (familyId) setCurrentFamily(familyId);
+  }, [familyId, setCurrentFamily]);
 
   if (isLoading || !family) {
     return (
@@ -37,13 +45,15 @@ export default function FamilyHomePage() {
 
   const handleShare = async () => {
     if (!inviteCode) return;
+    const joinUrl = `https://familykeeper.app/families/join?code=${inviteCode}`;
     if (navigator.share) {
       await navigator.share({
         title: `Join ${family.name}`,
         text: `Use this code to join ${family.name}: ${inviteCode}`,
+        url: joinUrl,
       });
     } else {
-      await navigator.clipboard.writeText(inviteCode);
+      await navigator.clipboard.writeText(joinUrl);
     }
   };
 
@@ -190,13 +200,14 @@ export default function FamilyHomePage() {
                   {inviteCode}
                 </p>
               </div>
+              <InviteQRCode code={inviteCode} familyName={family.name} />
               <div className="flex gap-2">
                 <Button
                   variant="secondary"
                   onClick={handleShare}
                   className="flex-1"
                 >
-                  {"share" in navigator ? "Share" : "Copy Code"}
+                  {"share" in navigator ? "Share" : "Copy Link"}
                 </Button>
                 <Button
                   variant="ghost"

@@ -35,13 +35,10 @@ type FamilyCalendarProps = {
 };
 
 export function FamilyCalendar({ familyId }: FamilyCalendarProps) {
-  const now = new Date();
-  const [dateRange, setDateRange] = useState({
-    start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString(),
-    end: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString(),
-  });
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
+  const [calendarReady, setCalendarReady] = useState(false);
 
-  const { data, isLoading } = useFamilyEvents(
+  const { data, isFetching } = useFamilyEvents(
     familyId,
     dateRange.start,
     dateRange.end,
@@ -63,6 +60,7 @@ export function FamilyCalendar({ familyId }: FamilyCalendarProps) {
   const handleDatesSet = useCallback(
     (arg: { startStr: string; endStr: string }) => {
       setDateRange({ start: arg.startStr, end: arg.endStr });
+      setCalendarReady(true);
     },
     [],
   );
@@ -103,27 +101,28 @@ export function FamilyCalendar({ familyId }: FamilyCalendarProps) {
         </p>
       )}
 
-      {/* Calendar */}
-      {isLoading && !data ? (
-        <CalendarSkeleton />
-      ) : (
-        <div className="rounded-xl border border-gray-200 bg-white p-2">
-          <FullCalendar
-            plugins={[dayGridPlugin, timeGridPlugin]}
-            initialView="dayGridMonth"
-            headerToolbar={{
-              left: "prev,next today",
-              center: "title",
-              right: "dayGridMonth,timeGridWeek",
-            }}
-            events={events}
-            datesSet={handleDatesSet}
-            height="auto"
-            eventDisplay="block"
-            dayMaxEvents={3}
-          />
-        </div>
-      )}
+      {/* Calendar — always rendered once mounted, never unmounted */}
+      <div className="relative rounded-xl border border-gray-200 bg-white p-2">
+        {isFetching && calendarReady && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60">
+            <div className="h-6 w-6 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent" />
+          </div>
+        )}
+        <FullCalendar
+          plugins={[dayGridPlugin, timeGridPlugin]}
+          initialView="dayGridMonth"
+          headerToolbar={{
+            left: "prev,next today",
+            center: "title",
+            right: "dayGridMonth,timeGridWeek",
+          }}
+          events={events}
+          datesSet={handleDatesSet}
+          height="auto"
+          eventDisplay="block"
+          dayMaxEvents={3}
+        />
+      </div>
     </div>
   );
 }
