@@ -41,23 +41,24 @@ VAPID key pair (env vars), `push_subscriptions` table, `pywebpush` + `PushServic
 
 ## Remaining Phases
 
-### Phase 9 — Comprehensive Testing & Go-Forward
+### Phase 9 — E2E Playwright Tests (in progress)
 
-**Goal:** Production confidence with high test coverage and a go-forward strategy.
+**Goal:** Full-stack E2E coverage exercising browser → Next.js → FastAPI → DB.
 
-1. **Backend test suite** — target 90% coverage
-   - Unit: security, permissions, invite codes, AI service, calendar service
-   - Integration: full auth → family → list → AI flows
-2. **Frontend test suite**
-   - Unit: stores, utils, hooks
-   - Integration: component flows (login, list management, AI capture)
-3. **E2E tests** (Playwright)
-   - Auth flow, family creation/join, list CRUD, calendar
-   - Mobile Chrome + Mobile Safari projects
-4. **CI enhancements**
-   - `pip audit` + `pnpm audit` in CI
-   - Coverage thresholds enforced
-5. **Go-forward strategy** — feature roadmap, monitoring dashboards
+Playwright config (`webServer` auto-starts backend + frontend), API-based test data seeding, 23 E2E tests across 5 spec files:
+- `auth.spec.ts` (5) — register, login, wrong password, logout, unauth redirect
+- `family.spec.ts` (5) — create, invite code, join, members, update name
+- `lists.spec.ts` (6) — create grocery, add item, multiple items, mark done, delete, chore+photo
+- `items-workflow.spec.ts` (4) — full flow, item count, undo, seeded items
+- `navigation.spec.ts` (3) — bottom nav, breadcrumbs, deep links
+
+CI: `e2e` job in `.github/workflows/ci.yml` (Postgres + Redis services, build + test).
+
+**Remaining Phase 9 work:**
+- Backend unit test coverage improvements (target 90%)
+- Frontend unit/integration tests (stores, hooks, components)
+- CI enhancements (`pip audit`, `pnpm audit`, coverage thresholds)
+- Go-forward strategy & monitoring
 
 ---
 

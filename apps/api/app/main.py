@@ -2,6 +2,8 @@ import logging
 from contextlib import asynccontextmanager
 
 import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -13,15 +15,21 @@ from app.routers import ai, auth, calendar, families, health, lists, push, users
 # Route app loggers through uvicorn's handler so they appear in stdout
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(message)s")
 
+# Initialize Sentry at module level so it captures all errors
+if settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        traces_sample_rate=0.1,
+        integrations=[
+            FastApiIntegration(),
+            StarletteIntegration(),
+        ],
+    )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if settings.SENTRY_DSN:
-        sentry_sdk.init(
-            dsn=settings.SENTRY_DSN,
-            environment=settings.ENVIRONMENT,
-            traces_sample_rate=0.1,
-        )
     await get_redis()
     yield
     await close_redis()

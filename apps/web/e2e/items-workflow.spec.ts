@@ -33,9 +33,9 @@ test.describe("Items workflow", () => {
       await expect(page.getByText(item)).toBeVisible({ timeout: 5_000 });
     }
 
-    // Complete Task B — find the card containing "Task B" and click its mark-as-done button
-    const taskBCard = page.locator("[class*=card]").filter({ hasText: "Task B" });
-    await taskBCard.getByLabel("Mark as done").click();
+    // Complete Task B — find the container with "Task B" and click its mark-as-done button
+    const taskBContainer = page.getByText("Task B").locator("..");
+    await taskBContainer.getByLabel("Mark as done").click();
 
     // Task B should move to completed section
     await expect(page.getByText(/Completed/)).toBeVisible({ timeout: 5_000 });
