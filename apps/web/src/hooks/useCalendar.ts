@@ -7,7 +7,12 @@ import type {
   MemberCalendarSettingsResponse,
   MemberCalendarSettingsUpdate,
 } from "@family-keeper/shared-types";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api-client";
 
@@ -24,6 +29,7 @@ export function useFamilyEvents(
       ),
     enabled: !!familyId && !!start && !!end,
     staleTime: 5 * 60 * 1000, // match backend 5-min cache
+    placeholderData: keepPreviousData,
   });
 }
 
