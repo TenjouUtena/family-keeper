@@ -83,8 +83,9 @@ export function useUpdateItem(familyId: string, listId: string) {
       itemId: string;
       content?: string;
       status?: string;
-      notes?: string;
+      notes?: string | null;
       assigned_to?: string | null;
+      due_date?: string | null;
     }) =>
       apiClient<ItemResponse>(
         `/v1/families/${familyId}/lists/${listId}/items/${itemId}`,
@@ -106,6 +107,23 @@ export function useDeleteItem(familyId: string, listId: string) {
       apiClient<{ message: string }>(
         `/v1/families/${familyId}/lists/${listId}/items/${itemId}`,
         { method: "DELETE" },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["lists", familyId, listId],
+      });
+    },
+  });
+}
+
+export function useReorderItems(familyId: string, listId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (items: { id: string; position: number }[]) =>
+      apiClient<ItemResponse[]>(
+        `/v1/families/${familyId}/lists/${listId}/items/reorder`,
+        { method: "PATCH", body: { items } },
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({
