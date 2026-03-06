@@ -7,8 +7,7 @@ import { useState } from "react";
 import type { ItemResponse } from "@family-keeper/shared-types";
 
 import { AICaptureButton } from "@/components/ai-capture-button";
-import { AttachmentThumbnail } from "@/components/attachment-thumbnail";
-import { PhotoUpload } from "@/components/photo-upload";
+import { ItemDetail } from "@/components/item-detail";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -39,9 +38,11 @@ export default function ListDetailPage() {
   const updateItem = useUpdateItem(familyId, listId);
   const deleteItem = useDeleteItem(familyId, listId);
   const [newItem, setNewItem] = useState("");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const currentMember = family?.members.find((m) => m.user_id === user?.id);
   const isParent = currentMember?.role === "parent";
+  const members = family?.members ?? [];
 
   if (isLoading || !list) {
     return (
@@ -125,11 +126,13 @@ export default function ListDetailPage() {
       ) : (
         <div className="space-y-2">
           {pendingItems.map((item: ItemResponse) => {
-            const hasCompletionPhoto = item.attachments?.some(
-              (a) => a.is_completion_photo,
+            const isExpanded = expandedId === item.id;
+            const assignedMember = members.find(
+              (m) => m.user_id === item.assigned_to,
             );
-            const needsPhoto =
-              list.require_photo_completion && !hasCompletionPhoto;
+            const isOverdue =
+              item.due_date &&
+              new Date(item.due_date) < new Date();
 
             return (
               <Card key={item.id}>
@@ -141,14 +144,60 @@ export default function ListDetailPage() {
                       className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-gray-300 transition-colors hover:border-indigo-500"
                       aria-label="Mark as done"
                     />
-                    <span className="flex-1 text-gray-900">
-                      {item.content}
-                    </span>
-                    {item.notes && (
-                      <span className="text-xs text-gray-400">
-                        {item.notes}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedId(isExpanded ? null : item.id)
+                      }
+                      className="flex min-w-0 flex-1 flex-col items-start text-left"
+                    >
+                      <span className="w-full truncate text-gray-900">
+                        {item.content}
                       </span>
-                    )}
+                      {/* Compact metadata hints */}
+                      <span className="flex gap-2 text-xs text-gray-400">
+                        {item.status === "in_progress" && (
+                          <span className="text-indigo-500">In progress</span>
+                        )}
+                        {assignedMember && (
+                          <span>{assignedMember.username}</span>
+                        )}
+                        {item.due_date && (
+                          <span className={isOverdue ? "text-red-500" : ""}>
+                            {new Date(item.due_date).toLocaleDateString(
+                              undefined,
+                              { month: "short", day: "numeric" },
+                            )}
+                            {isOverdue && " (overdue)"}
+                          </span>
+                        )}
+                        {item.notes && <span>has notes</span>}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedId(isExpanded ? null : item.id)
+                      }
+                      className="shrink-0 text-gray-400 hover:text-gray-600"
+                      aria-label={
+                        isExpanded ? "Collapse details" : "Expand details"
+                      }
+                    >
+                      <svg
+                        className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        strokeWidth="2"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+                        />
+                      </svg>
+                    </button>
                     <button
                       type="button"
                       onClick={() => deleteItem.mutate(item.id)}
@@ -171,31 +220,15 @@ export default function ListDetailPage() {
                     </button>
                   </div>
 
-                  {/* Attachment thumbnails */}
-                  {item.attachments?.length > 0 && (
-                    <div className="ml-9 flex gap-2">
-                      {item.attachments.map((att) => (
-                        <AttachmentThumbnail
-                          key={att.id}
-                          familyId={familyId}
-                          listId={listId}
-                          itemId={item.id}
-                          attachment={att}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Photo upload for items needing proof */}
-                  {needsPhoto && (
-                    <div className="ml-9">
-                      <PhotoUpload
-                        familyId={familyId}
-                        listId={listId}
-                        itemId={item.id}
-                        isCompletionPhoto
-                      />
-                    </div>
+                  {/* Expanded detail panel */}
+                  {isExpanded && (
+                    <ItemDetail
+                      item={item}
+                      list={list}
+                      familyId={familyId}
+                      members={members}
+                      isParent={isParent}
+                    />
                   )}
                 </CardContent>
               </Card>
@@ -209,109 +242,146 @@ export default function ListDetailPage() {
                 Completed ({doneItems.length})
               </h3>
               <div className="space-y-2">
-                {doneItems.map((item: ItemResponse) => (
-                  <Card key={item.id} className="opacity-60">
-                    <CardContent className="space-y-1 py-3">
-                      <div className="flex items-center gap-3">
-                        {isParent ? (
+                {doneItems.map((item: ItemResponse) => {
+                  const isExpanded = expandedId === item.id;
+
+                  return (
+                    <Card key={item.id} className="opacity-60">
+                      <CardContent className="space-y-1 py-3">
+                        <div className="flex items-center gap-3">
+                          {isParent ? (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStatus(item)}
+                              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-indigo-500 bg-indigo-500 text-white"
+                              aria-label="Mark as pending"
+                            >
+                              <svg
+                                className="h-3.5 w-3.5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth="3"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M4.5 12.75l6 6 9-13.5"
+                                />
+                              </svg>
+                            </button>
+                          ) : (
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-indigo-500 bg-indigo-500 text-white">
+                              <svg
+                                className="h-3.5 w-3.5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth="3"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M4.5 12.75l6 6 9-13.5"
+                                />
+                              </svg>
+                            </div>
+                          )}
                           <button
                             type="button"
-                            onClick={() => handleToggleStatus(item)}
-                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-indigo-500 bg-indigo-500 text-white"
-                            aria-label="Mark as pending"
+                            onClick={() =>
+                              setExpandedId(isExpanded ? null : item.id)
+                            }
+                            className="flex min-w-0 flex-1 items-start text-left"
+                          >
+                            <span className="w-full truncate text-gray-500 line-through">
+                              {item.content}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedId(isExpanded ? null : item.id)
+                            }
+                            className="shrink-0 text-gray-400 hover:text-gray-600"
+                            aria-label={
+                              isExpanded
+                                ? "Collapse details"
+                                : "Expand details"
+                            }
                           >
                             <svg
-                              className="h-3.5 w-3.5"
+                              className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`}
                               fill="none"
                               viewBox="0 0 24 24"
-                              strokeWidth="3"
+                              strokeWidth="2"
                               stroke="currentColor"
                             >
                               <path
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
-                                d="M4.5 12.75l6 6 9-13.5"
+                                d="M19.5 8.25l-7.5 7.5-7.5-7.5"
                               />
                             </svg>
                           </button>
-                        ) : (
-                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-indigo-500 bg-indigo-500 text-white">
+                          <button
+                            type="button"
+                            onClick={() => deleteItem.mutate(item.id)}
+                            className="text-gray-400 hover:text-red-500"
+                            aria-label="Delete item"
+                          >
                             <svg
-                              className="h-3.5 w-3.5"
+                              className="h-4 w-4"
                               fill="none"
                               viewBox="0 0 24 24"
-                              strokeWidth="3"
+                              strokeWidth="2"
                               stroke="currentColor"
                             >
                               <path
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
-                                d="M4.5 12.75l6 6 9-13.5"
+                                d="M6 18L18 6M6 6l12 12"
                               />
                             </svg>
-                          </div>
-                        )}
-                        <span className="flex-1 text-gray-500 line-through">
-                          {item.content}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => deleteItem.mutate(item.id)}
-                          className="text-gray-400 hover:text-red-500"
-                          aria-label="Delete item"
-                        >
-                          <svg
-                            className="h-4 w-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            strokeWidth="2"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M6 18L18 6M6 6l12 12"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                      {(item.completed_by_username || item.completed_at) && (
-                        <p className="ml-9 text-xs text-gray-400">
-                          {item.completed_by_username && (
-                            <>Done by {item.completed_by_username}</>
-                          )}
-                          {item.completed_at && (
-                            <>
-                              {item.completed_by_username ? " " : "Done "}
-                              {new Date(item.completed_at).toLocaleDateString(
-                                undefined,
-                                {
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "numeric",
-                                  minute: "2-digit",
-                                },
-                              )}
-                            </>
-                          )}
-                        </p>
-                      )}
-                      {item.attachments?.length > 0 && (
-                        <div className="ml-9 flex gap-2">
-                          {item.attachments.map((att) => (
-                            <AttachmentThumbnail
-                              key={att.id}
-                              familyId={familyId}
-                              listId={listId}
-                              itemId={item.id}
-                              attachment={att}
-                            />
-                          ))}
+                          </button>
                         </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
+                        {!isExpanded &&
+                          (item.completed_by_username ||
+                            item.completed_at) && (
+                            <p className="ml-9 text-xs text-gray-400">
+                              {item.completed_by_username && (
+                                <>Done by {item.completed_by_username}</>
+                              )}
+                              {item.completed_at && (
+                                <>
+                                  {item.completed_by_username ? " " : "Done "}
+                                  {new Date(
+                                    item.completed_at,
+                                  ).toLocaleDateString(undefined, {
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                  })}
+                                </>
+                              )}
+                            </p>
+                          )}
+
+                        {/* Expanded detail panel */}
+                        {isExpanded && (
+                          <ItemDetail
+                            item={item}
+                            list={list}
+                            familyId={familyId}
+                            members={members}
+                            isParent={isParent}
+                          />
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             </div>
           )}

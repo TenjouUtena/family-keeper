@@ -83,8 +83,9 @@ export function useUpdateItem(familyId: string, listId: string) {
       itemId: string;
       content?: string;
       status?: string;
-      notes?: string;
+      notes?: string | null;
       assigned_to?: string | null;
+      due_date?: string | null;
     }) =>
       apiClient<ItemResponse>(
         `/v1/families/${familyId}/lists/${listId}/items/${itemId}`,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
@@ -21,18 +21,140 @@ import { useFamily } from "@/hooks/useFamilies";
 import { useAuthStore } from "@/stores/auth-store";
 import { API_BASE_URL } from "@/lib/api-client";
 
-const PRESET_COLORS = [
-  "#4F46E5",
-  "#059669",
-  "#DC2626",
-  "#D97706",
-  "#7C3AED",
-  "#DB2777",
-  "#0891B2",
-  "#65A30D",
-  "#EA580C",
-  "#4338CA",
+const PRESET_COLORS: { hex: string; name: string }[] = [
+  { hex: "#4F46E5", name: "Indigo" },
+  { hex: "#7C3AED", name: "Violet" },
+  { hex: "#DB2777", name: "Pink" },
+  { hex: "#DC2626", name: "Red" },
+  { hex: "#EA580C", name: "Orange" },
+  { hex: "#D97706", name: "Amber" },
+  { hex: "#CA8A04", name: "Yellow" },
+  { hex: "#65A30D", name: "Lime" },
+  { hex: "#059669", name: "Emerald" },
+  { hex: "#0D9488", name: "Teal" },
+  { hex: "#0891B2", name: "Cyan" },
+  { hex: "#2563EB", name: "Blue" },
+  { hex: "#4338CA", name: "Deep Indigo" },
+  { hex: "#6D28D9", name: "Purple" },
+  { hex: "#64748B", name: "Slate" },
+  { hex: "#374151", name: "Charcoal" },
 ];
+
+function ColorPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (color: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [hexInput, setHexInput] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  const presetMatch = PRESET_COLORS.find(
+    (c) => c.hex.toLowerCase() === value.toLowerCase(),
+  );
+
+  const applyHex = () => {
+    const trimmed = hexInput.trim();
+    if (/^#?[0-9a-fA-F]{6}$/.test(trimmed)) {
+      const hex = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
+      onChange(hex);
+      setOpen(false);
+      setHexInput("");
+    }
+  };
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 rounded-md border border-gray-300 px-2 py-1.5 text-xs hover:border-gray-400 transition-colors"
+      >
+        <span
+          className="h-4 w-4 rounded-full shrink-0"
+          style={{ backgroundColor: value }}
+        />
+        <span className="text-gray-700 truncate max-w-20">
+          {presetMatch ? presetMatch.name : value}
+        </span>
+        <svg
+          className={`h-3 w-3 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth="2"
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
+          <div className="grid grid-cols-4 gap-1.5 mb-3">
+            {PRESET_COLORS.map((c) => (
+              <button
+                key={c.hex}
+                type="button"
+                onClick={() => {
+                  onChange(c.hex);
+                  setOpen(false);
+                }}
+                className={`flex items-center justify-center h-10 rounded-md border-2 transition-all ${
+                  value.toLowerCase() === c.hex.toLowerCase()
+                    ? "border-gray-800 scale-105"
+                    : "border-transparent hover:border-gray-300"
+                }`}
+                style={{ backgroundColor: c.hex }}
+                title={c.name}
+              >
+                {value.toLowerCase() === c.hex.toLowerCase() && (
+                  <svg className="h-4 w-4 text-white drop-shadow" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+          <div className="border-t border-gray-100 pt-2">
+            <label className="text-xs font-medium text-gray-500 mb-1 block">
+              Custom hex
+            </label>
+            <div className="flex gap-1.5">
+              <input
+                type="text"
+                value={hexInput}
+                onChange={(e) => setHexInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && applyHex()}
+                placeholder="#A855F7"
+                className="flex-1 rounded-md border border-gray-300 px-2 py-1 text-xs focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                maxLength={7}
+              />
+              <button
+                type="button"
+                onClick={applyHex}
+                className="rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200 transition-colors"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 type CalendarSelection = {
   google_calendar_id: string;
@@ -192,23 +314,10 @@ export default function MemberSettingsPage() {
                       {cal.calendar_name}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    {PRESET_COLORS.map((c) => (
-                      <button
-                        key={c}
-                        onClick={() =>
-                          changeColor(cal.google_calendar_id, c)
-                        }
-                        className={`h-5 w-5 rounded-full border-2 transition-transform ${
-                          cal.color === c
-                            ? "scale-110 border-gray-800"
-                            : "border-transparent hover:scale-110"
-                        }`}
-                        style={{ backgroundColor: c }}
-                        title={c}
-                      />
-                    ))}
-                  </div>
+                  <ColorPicker
+                    value={cal.color}
+                    onChange={(c) => changeColor(cal.google_calendar_id, c)}
+                  />
                 </div>
               ))}
 
