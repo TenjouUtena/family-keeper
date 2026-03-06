@@ -23,6 +23,8 @@ export default function NewListPage() {
   const [name, setName] = useState("");
   const [listType, setListType] = useState("todo");
   const [requirePhoto, setRequirePhoto] = useState(false);
+  const [visibleToRole, setVisibleToRole] = useState("");
+  const [editableByRole, setEditableByRole] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,6 +34,8 @@ export default function NewListPage() {
       name: name.trim(),
       list_type: listType,
       require_photo_completion: requirePhoto,
+      visible_to_role: visibleToRole || null,
+      editable_by_role: editableByRole || null,
     });
     router.push(`/families/${familyId}/lists/${list.id}`);
   };
@@ -88,6 +92,44 @@ export default function NewListPage() {
                 </span>
               </label>
             )}
+
+            <div className="space-y-1">
+              <label
+                htmlFor="visible-to"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Visible to
+              </label>
+              <select
+                id="visible-to"
+                value={visibleToRole}
+                onChange={(e) => setVisibleToRole(e.target.value)}
+                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="">Everyone</option>
+                <option value="parent">Parents only</option>
+                <option value="child">Children only</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label
+                htmlFor="editable-by"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Editable by
+              </label>
+              <select
+                id="editable-by"
+                value={editableByRole}
+                onChange={(e) => setEditableByRole(e.target.value)}
+                className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="">Everyone</option>
+                <option value="parent">Parents only</option>
+                <option value="child">Children only</option>
+              </select>
+            </div>
 
             {createList.error && (
               <p className="text-sm text-red-600">

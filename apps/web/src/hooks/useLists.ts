@@ -44,6 +44,8 @@ export function useCreateList(familyId: string) {
       name: string;
       list_type?: string;
       require_photo_completion?: boolean;
+      visible_to_role?: string | null;
+      editable_by_role?: string | null;
     }) =>
       apiClient<ListResponse>(`/v1/families/${familyId}/lists`, {
         method: "POST",
@@ -51,6 +53,30 @@ export function useCreateList(familyId: string) {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lists", familyId] });
+    },
+  });
+}
+
+export function useUpdateList(familyId: string, listId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: {
+      name?: string;
+      visible_to_role?: string | null;
+      editable_by_role?: string | null;
+      require_photo_completion?: boolean;
+      is_archived?: boolean;
+    }) =>
+      apiClient<ListResponse>(
+        `/v1/families/${familyId}/lists/${listId}`,
+        { method: "PATCH", body: data },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lists", familyId] });
+      queryClient.invalidateQueries({
+        queryKey: ["lists", familyId, listId],
+      });
     },
   });
 }
