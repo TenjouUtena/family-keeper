@@ -5,7 +5,9 @@ describe("useFamilyStore", () => {
   beforeEach(() => {
     useFamilyStore.setState({ currentFamilyId: null });
     localStorage.clear();
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.spyOn(Storage.prototype, "setItem");
+    vi.spyOn(Storage.prototype, "removeItem");
   });
 
   it("setCurrentFamily stores ID in state and localStorage", () => {

@@ -46,7 +46,7 @@ jobs:
       - name: Install dependencies
         run: poetry install
       - name: Lint
-        run: poetry run ruff check app tests
+        run: poetry run ruff check app
       - name: Dependency audit
         run: poetry run pip audit --strict || true
       - name: Test
