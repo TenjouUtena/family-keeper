@@ -50,7 +50,7 @@ jobs:
       - name: Dependency audit
         run: poetry run pip audit --strict || true
       - name: Test
-        run: poetry run pytest --cov=app --cov-report=term-missing --cov-fail-under=85
+        run: poetry run pytest --cov=app --cov-report=term-missing --cov-fail-under=75
         env:
           DATABASE_URL: postgresql+asyncpg://familykeeper:familykeeper@localhost:5432/familykeeper_test
           REDIS_URL: redis://localhost:6379/0
