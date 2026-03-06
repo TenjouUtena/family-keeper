@@ -67,41 +67,48 @@ export default function MembersPage() {
                 </div>
               </div>
 
-              {member.user_id !== currentUser?.id && (
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      updateRole.mutate({
-                        userId: member.user_id,
-                        role:
-                          member.role === "parent" ? "child" : "parent",
-                      })
-                    }
-                  >
-                    {member.role === "parent"
-                      ? `Make ${family.child_role_name}`
-                      : `Make ${family.parent_role_name}`}
+              <div className="flex gap-2">
+                <Link href={`/families/${familyId}/members/${member.user_id}/settings`}>
+                  <Button variant="ghost" size="sm">
+                    Settings
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                    onClick={() => {
-                      if (
-                        confirm(
-                          `Remove ${member.username} from ${family.name}?`,
-                        )
-                      ) {
-                        removeMember.mutate(member.user_id);
+                </Link>
+                {member.user_id !== currentUser?.id && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        updateRole.mutate({
+                          userId: member.user_id,
+                          role:
+                            member.role === "parent" ? "child" : "parent",
+                        })
                       }
-                    }}
-                  >
-                    Remove
-                  </Button>
-                </div>
-              )}
+                    >
+                      {member.role === "parent"
+                        ? `Make ${family.child_role_name}`
+                        : `Make ${family.parent_role_name}`}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                      onClick={() => {
+                        if (
+                          confirm(
+                            `Remove ${member.username} from ${family.name}?`,
+                          )
+                        ) {
+                          removeMember.mutate(member.user_id);
+                        }
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </>
+                )}
+              </div>
             </CardContent>
           </Card>
         ))}

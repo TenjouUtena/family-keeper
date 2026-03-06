@@ -2,7 +2,10 @@
 
 import type {
   CalendarEventsResponse,
+  GoogleCalendarListResponse,
   GoogleOAuthStatus,
+  MemberCalendarSettingsResponse,
+  MemberCalendarSettingsUpdate,
 } from "@family-keeper/shared-types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -42,6 +45,46 @@ export function useDisconnectGoogle() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["google-auth-status"] });
+      queryClient.invalidateQueries({ queryKey: ["calendar"] });
+    },
+  });
+}
+
+export function useGoogleCalendarList() {
+  return useQuery({
+    queryKey: ["google-calendar-list"],
+    queryFn: () =>
+      apiClient<GoogleCalendarListResponse>("/v1/calendar/google/calendars"),
+  });
+}
+
+export function useMemberCalendarSettings(
+  familyId: string,
+  userId: string,
+) {
+  return useQuery({
+    queryKey: ["member-calendar-settings", familyId, userId],
+    queryFn: () =>
+      apiClient<MemberCalendarSettingsResponse>(
+        `/v1/calendar/family/${familyId}/members/${userId}/settings`,
+      ),
+    enabled: !!familyId && !!userId,
+  });
+}
+
+export function useUpdateMemberCalendarSettings(familyId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: MemberCalendarSettingsUpdate) =>
+      apiClient<MemberCalendarSettingsResponse>(
+        `/v1/calendar/family/${familyId}/members/me/settings`,
+        { method: "PUT", body },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["member-calendar-settings", familyId],
+      });
       queryClient.invalidateQueries({ queryKey: ["calendar"] });
     },
   });

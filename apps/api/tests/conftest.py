@@ -37,8 +37,16 @@ class FakeRedis:
     async def get(self, key: str) -> str | None:
         return self._store.get(key)
 
-    async def delete(self, key: str):
-        self._store.pop(key, None)
+    async def delete(self, *keys: str):
+        for key in keys:
+            self._store.pop(key, None)
+
+    async def keys(self, pattern: str = "*") -> list[str]:
+        if pattern == "*":
+            return list(self._store.keys())
+        # Simple glob: only support "prefix*" pattern
+        prefix = pattern.rstrip("*")
+        return [k for k in self._store if k.startswith(prefix)]
 
     def pipeline(self):
         return FakePipeline(self)

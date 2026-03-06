@@ -23,13 +23,13 @@ export default defineConfig({
       command:
         "cd ../api && RATE_LIMIT_DISABLED=true poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000",
       port: 8000,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer:true,
       timeout: 30_000,
     },
     {
       command: "pnpm build && pnpm start",
       port: 3000,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer:true,
       timeout: 120_000,
     },
   ],

@@ -177,6 +177,7 @@ export type CalendarEvent = {
   all_day: boolean;
   member_name: string;
   color: string;
+  calendar_name: string | null;
 };
 
 export type CalendarEventsResponse = {
@@ -188,4 +189,38 @@ export type CalendarEventsResponse = {
 export type GoogleOAuthStatus = {
   connected: boolean;
   scope: string | null;
+};
+
+// Google Calendar List
+export type GoogleCalendarListItem = {
+  id: string;
+  summary: string;
+  primary: boolean;
+  color: string | null;
+};
+
+export type GoogleCalendarListResponse = {
+  calendars: GoogleCalendarListItem[];
+};
+
+// Shared Calendar Settings
+export type SharedCalendarSetting = {
+  id: string;
+  google_calendar_id: string;
+  calendar_name: string;
+  color: string;
+  is_enabled: boolean;
+};
+
+export type MemberCalendarSettingsResponse = {
+  shared_calendars: SharedCalendarSetting[];
+};
+
+export type MemberCalendarSettingsUpdate = {
+  shared_calendars: {
+    google_calendar_id: string;
+    calendar_name: string;
+    color: string;
+    is_enabled: boolean;
+  }[];
 };

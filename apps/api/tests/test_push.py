@@ -224,3 +224,148 @@ async def test_push_service_cleans_stale_410(db: AsyncSession, test_user: User):
         select(PushSubscription).where(PushSubscription.id == sub.id)
     )
     assert result.scalar_one_or_none() is None
+
+
+# --- send_to_family, error handling, notify_in_background ---
+
+
+@pytest.mark.asyncio
+async def test_push_service_send_to_family(db: AsyncSession, test_user: User):
+    """send_to_family sends to all family member subscriptions excluding sender."""
+    from app.core.security import hash_password
+    from app.models.family import Family
+    from app.models.family_member import FamilyMember
+
+    # Create a second user
+    user2 = User(
+        email="family2@example.com",
+        username="familyuser2",
+        password_hash=hash_password("password123"),
+    )
+    db.add(user2)
+    await db.flush()
+
+    # Create family and add both users as members
+    family = Family(name="Push Test Family")
+    db.add(family)
+    await db.flush()
+
+    member1 = FamilyMember(family_id=family.id, user_id=test_user.id, role="parent")
+    member2 = FamilyMember(family_id=family.id, user_id=user2.id, role="parent")
+    db.add_all([member1, member2])
+    await db.commit()
+
+    # Create subscriptions for both users
+    service = PushService(db)
+    await service.subscribe(
+        user_id=test_user.id,
+        endpoint="https://push.example.com/user1",
+        p256dh="p256dh1",
+        auth="auth1",
+    )
+    await service.subscribe(
+        user_id=user2.id,
+        endpoint="https://push.example.com/user2",
+        p256dh="p256dh2",
+        auth="auth2",
+    )
+
+    with patch("app.services.push_service.settings") as mock_settings:
+        mock_settings.VAPID_PRIVATE_KEY = "fake-private-key"
+        mock_settings.VAPID_MAILTO = "mailto:test@example.com"
+        with patch("app.services.push_service.webpush") as mock_webpush:
+            # Exclude test_user (user1), so only user2 should receive the push
+            await service.send_to_family(
+                family.id, "Family Title", "Family Body", exclude_user_id=test_user.id
+            )
+            mock_webpush.assert_called_once()
+            call_kwargs = mock_webpush.call_args
+            assert call_kwargs[1]["subscription_info"]["endpoint"] == "https://push.example.com/user2"
+
+
+@pytest.mark.asyncio
+async def test_push_service_non_410_webpush_error(db: AsyncSession, test_user: User):
+    """Non-410 WebPushException logs warning but does NOT delete subscription."""
+    from pywebpush import WebPushException
+
+    service = PushService(db)
+    sub = await service.subscribe(
+        user_id=test_user.id,
+        endpoint="https://push.example.com/non410",
+        p256dh="p256dh",
+        auth="auth",
+    )
+
+    mock_response = MagicMock()
+    mock_response.status_code = 500
+
+    with patch("app.services.push_service.settings") as mock_settings:
+        mock_settings.VAPID_PRIVATE_KEY = "fake-private-key"
+        mock_settings.VAPID_MAILTO = "mailto:test@example.com"
+        with patch(
+            "app.services.push_service.webpush",
+            side_effect=WebPushException("Server Error", response=mock_response),
+        ):
+            await service.send_to_user(test_user.id, "Title", "Body")
+
+    # Subscription should still exist (not deleted for non-410 errors)
+    result = await db.execute(
+        select(PushSubscription).where(PushSubscription.id == sub.id)
+    )
+    assert result.scalar_one_or_none() is not None
+
+
+@pytest.mark.asyncio
+async def test_push_service_generic_exception(db: AsyncSession, test_user: User):
+    """Generic Exception during webpush does NOT delete subscription."""
+    service = PushService(db)
+    sub = await service.subscribe(
+        user_id=test_user.id,
+        endpoint="https://push.example.com/generic-err",
+        p256dh="p256dh",
+        auth="auth",
+    )
+
+    with patch("app.services.push_service.settings") as mock_settings:
+        mock_settings.VAPID_PRIVATE_KEY = "fake-private-key"
+        mock_settings.VAPID_MAILTO = "mailto:test@example.com"
+        with patch(
+            "app.services.push_service.webpush",
+            side_effect=RuntimeError("Connection refused"),
+        ):
+            await service.send_to_user(test_user.id, "Title", "Body")
+
+    # Subscription should still exist
+    result = await db.execute(
+        select(PushSubscription).where(PushSubscription.id == sub.id)
+    )
+    assert result.scalar_one_or_none() is not None
+
+
+@pytest.mark.asyncio
+async def test_notify_in_background_no_vapid(db: AsyncSession, test_user: User):
+    """notify_in_background returns immediately when VAPID_PRIVATE_KEY is empty."""
+    from app.services.push_service import notify_in_background
+
+    with patch("app.services.push_service.settings") as mock_settings:
+        mock_settings.VAPID_PRIVATE_KEY = ""
+        # Should not raise, just return early
+        await notify_in_background(
+            db, user_id=test_user.id, title="Test", body="Body"
+        )
+
+
+@pytest.mark.asyncio
+async def test_notify_in_background_exception_logged(db: AsyncSession, test_user: User):
+    """notify_in_background swallows exceptions from send_to_user."""
+    from app.services.push_service import notify_in_background
+
+    with patch("app.services.push_service.settings") as mock_settings:
+        mock_settings.VAPID_PRIVATE_KEY = "fake-key"
+        with patch.object(
+            PushService, "send_to_user", side_effect=RuntimeError("boom")
+        ):
+            # Should NOT propagate the exception
+            await notify_in_background(
+                db, user_id=test_user.id, title="Test", body="Body"
+            )
