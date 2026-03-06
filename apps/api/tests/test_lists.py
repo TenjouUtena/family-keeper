@@ -1,8 +1,16 @@
+import uuid
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_access_token, hash_password
+from app.core.security import (
+    blacklist_token,
+    create_access_token,
+    create_refresh_token,
+    hash_password,
+)
 from app.models import User
 
 pytestmark = pytest.mark.anyio
@@ -501,3 +509,172 @@ async def test_non_member_cannot_access_lists(
         f"/v1/families/{fid}/lists", headers=other_headers
     )
     assert resp.status_code == 403
+
+
+# --- Attachment URL ---
+
+
+async def test_get_attachment_url_not_found(
+    client: AsyncClient,
+    auth_headers: dict,
+):
+    """GET attachment URL returns 404 for non-existent attachment."""
+    fid = await create_family_with_member(client, auth_headers)
+    create_resp = await client.post(
+        f"/v1/families/{fid}/lists",
+        json={"name": "Todo"},
+        headers=auth_headers,
+    )
+    lid = create_resp.json()["id"]
+
+    items_resp = await client.post(
+        f"/v1/families/{fid}/lists/{lid}/items",
+        json={"items": [{"content": "Task"}]},
+        headers=auth_headers,
+    )
+    item_id = items_resp.json()[0]["id"]
+
+    fake_attachment_id = str(uuid.uuid4())
+    resp = await client.get(
+        f"/v1/families/{fid}/lists/{lid}/items/{item_id}"
+        f"/attachments/{fake_attachment_id}/url",
+        headers=auth_headers,
+    )
+    assert resp.status_code == 404
+    assert "attachment" in resp.json()["detail"].lower()
+
+
+# --- SSE Stream Auth ---
+
+
+async def test_stream_invalid_token(
+    client: AsyncClient,
+    auth_headers: dict,
+):
+    """SSE stream rejects a completely invalid JWT."""
+    fid = await create_family_with_member(client, auth_headers)
+    create_resp = await client.post(
+        f"/v1/families/{fid}/lists",
+        json={"name": "Todo"},
+        headers=auth_headers,
+    )
+    lid = create_resp.json()["id"]
+
+    resp = await client.get(
+        f"/v1/families/{fid}/lists/{lid}/stream",
+        params={"token": "not-a-valid-jwt"},
+    )
+    assert resp.status_code == 401
+    assert "invalid token" in resp.json()["detail"].lower()
+
+
+async def test_stream_refresh_token_rejected(
+    client: AsyncClient,
+    auth_headers: dict,
+    test_user: User,
+):
+    """SSE stream rejects a refresh token (wrong type)."""
+    fid = await create_family_with_member(client, auth_headers)
+    create_resp = await client.post(
+        f"/v1/families/{fid}/lists",
+        json={"name": "Todo"},
+        headers=auth_headers,
+    )
+    lid = create_resp.json()["id"]
+
+    refresh_token, _ = create_refresh_token(test_user.id)
+    resp = await client.get(
+        f"/v1/families/{fid}/lists/{lid}/stream",
+        params={"token": refresh_token},
+    )
+    assert resp.status_code == 401
+    assert "token type" in resp.json()["detail"].lower()
+
+
+async def test_stream_blacklisted_token(
+    client: AsyncClient,
+    auth_headers: dict,
+    test_user: User,
+):
+    """SSE stream rejects a blacklisted access token."""
+    fid = await create_family_with_member(client, auth_headers)
+    create_resp = await client.post(
+        f"/v1/families/{fid}/lists",
+        json={"name": "Todo"},
+        headers=auth_headers,
+    )
+    lid = create_resp.json()["id"]
+
+    access_token, jti = create_access_token(test_user.id)
+    await blacklist_token(jti, ttl_seconds=300)
+
+    resp = await client.get(
+        f"/v1/families/{fid}/lists/{lid}/stream",
+        params={"token": access_token},
+    )
+    assert resp.status_code == 401
+    assert "revoked" in resp.json()["detail"].lower()
+
+
+async def test_stream_non_member_forbidden(
+    client: AsyncClient,
+    auth_headers: dict,
+    db: AsyncSession,
+):
+    """SSE stream returns 403 for a valid user who is not a family member."""
+    fid = await create_family_with_member(client, auth_headers)
+    create_resp = await client.post(
+        f"/v1/families/{fid}/lists",
+        json={"name": "Todo"},
+        headers=auth_headers,
+    )
+    lid = create_resp.json()["id"]
+
+    # Create a second user who is NOT a member of this family
+    _, other_headers = await create_second_user(db)
+    # Extract raw token from the other user's headers
+    other_token = other_headers["Authorization"].removeprefix("Bearer ")
+
+    resp = await client.get(
+        f"/v1/families/{fid}/lists/{lid}/stream",
+        params={"token": other_token},
+    )
+    assert resp.status_code == 403
+    assert "not a member" in resp.json()["detail"].lower()
+
+
+@patch("app.routers.lists.subscribe_list")
+async def test_stream_valid_returns_event_stream(
+    mock_subscribe: AsyncMock,
+    client: AsyncClient,
+    auth_headers: dict,
+    test_user: User,
+):
+    """SSE stream returns 200 with text/event-stream for a valid member."""
+    fid = await create_family_with_member(client, auth_headers)
+    create_resp = await client.post(
+        f"/v1/families/{fid}/lists",
+        json={"name": "Todo"},
+        headers=auth_headers,
+    )
+    lid = create_resp.json()["id"]
+
+    # Mock subscribe_list to return a fake pubsub that raises on first
+    # get_message call, causing the generator to exit (and the response to end).
+    mock_pubsub = AsyncMock()
+    mock_pubsub.get_message = AsyncMock(
+        side_effect=ConnectionError("test: break stream loop")
+    )
+    mock_pubsub.unsubscribe = AsyncMock()
+    mock_pubsub.aclose = AsyncMock()
+    mock_redis = AsyncMock()
+    mock_redis.aclose = AsyncMock()
+    mock_subscribe.return_value = (mock_pubsub, mock_redis)
+
+    access_token, _ = create_access_token(test_user.id)
+    resp = await client.get(
+        f"/v1/families/{fid}/lists/{lid}/stream",
+        params={"token": access_token},
+    )
+    assert resp.status_code == 200
+    assert "text/event-stream" in resp.headers["content-type"]
