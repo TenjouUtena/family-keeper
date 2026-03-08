@@ -287,6 +287,18 @@ class ListService:
         await self.db.refresh(item)
         await publish_list_event(list_id, "item_created", {"item_id": str(item.id)})
 
+        # Push: notify assignee
+        if item.assigned_to and item.assigned_to != member.user_id:
+            asyncio.create_task(
+                notify_in_background(
+                    self.db,
+                    user_id=item.assigned_to,
+                    title=f"{family_list.name}",
+                    body=f'"{item.content}" assigned to you',
+                    url=f"/families/{family_list.family_id}/lists/{list_id}",
+                )
+            )
+
         return ItemResponse(
             id=item.id,
             list_id=item.list_id,
@@ -336,6 +348,19 @@ class ListService:
         for item in items:
             await self.db.refresh(item)
         await publish_list_event(list_id, "items_created", {"count": len(items)})
+
+        # Push: notify assignees of new items
+        for item in items:
+            if item.assigned_to and item.assigned_to != member.user_id:
+                asyncio.create_task(
+                    notify_in_background(
+                        self.db,
+                        user_id=item.assigned_to,
+                        title=f"{family_list.name}",
+                        body=f'"{item.content}" assigned to you',
+                        url=f"/families/{family_list.family_id}/lists/{list_id}",
+                    )
+                )
 
         # Push: notify family about new grocery items
         if family_list.list_type == ListType.GROCERY:

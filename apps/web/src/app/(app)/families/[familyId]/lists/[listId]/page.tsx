@@ -161,26 +161,28 @@ function SortableItem({
                 />
               </svg>
             </button>
-            <button
-              type="button"
-              onClick={() => deleteItem.mutate(item.id)}
-              className="text-gray-400 hover:text-red-500"
-              aria-label="Delete item"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth="2"
-                stroke="currentColor"
+            {isParent && (
+              <button
+                type="button"
+                onClick={() => deleteItem.mutate(item.id)}
+                className="text-gray-400 hover:text-red-500"
+                aria-label="Delete item"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth="2"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            )}
           </div>
 
           {isExpanded && (
@@ -492,26 +494,28 @@ export default function ListDetailPage() {
                               />
                             </svg>
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => deleteItem.mutate(item.id)}
-                            className="text-gray-400 hover:text-red-500"
-                            aria-label="Delete item"
-                          >
-                            <svg
-                              className="h-4 w-4"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              strokeWidth="2"
-                              stroke="currentColor"
+                          {isParent && (
+                            <button
+                              type="button"
+                              onClick={() => deleteItem.mutate(item.id)}
+                              className="text-gray-400 hover:text-red-500"
+                              aria-label="Delete item"
                             >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M6 18L18 6M6 6l12 12"
-                              />
-                            </svg>
-                          </button>
+                              <svg
+                                className="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth="2"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M6 18L18 6M6 6l12 12"
+                                />
+                              </svg>
+                            </button>
+                          )}
                         </div>
                         {!isExpanded &&
                           (item.completed_by_username ||
