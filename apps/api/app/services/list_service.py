@@ -29,7 +29,10 @@ from app.schemas.lists import (
     UpdateItemRequest,
     UpdateListRequest,
 )
-from app.services.push_service import notify_in_background
+from app.models.notification import NotificationType
+from app.services.notification_service import (
+    notify_in_background,
+)
 
 POSITION_GAP = 100
 
@@ -287,12 +290,13 @@ class ListService:
         await self.db.refresh(item)
         await publish_list_event(list_id, "item_created", {"item_id": str(item.id)})
 
-        # Push: notify assignee
+        # Notify assignee
         if item.assigned_to and item.assigned_to != member.user_id:
             asyncio.create_task(
                 notify_in_background(
-                    self.db,
                     user_id=item.assigned_to,
+                    family_id=family_list.family_id,
+                    type=NotificationType.TASK_ASSIGNED,
                     title=f"{family_list.name}",
                     body=f'"{item.content}" assigned to you',
                     url=f"/families/{family_list.family_id}/lists/{list_id}",
@@ -349,25 +353,26 @@ class ListService:
             await self.db.refresh(item)
         await publish_list_event(list_id, "items_created", {"count": len(items)})
 
-        # Push: notify assignees of new items
+        # Notify assignees of new items
         for item in items:
             if item.assigned_to and item.assigned_to != member.user_id:
                 asyncio.create_task(
                     notify_in_background(
-                        self.db,
                         user_id=item.assigned_to,
+                        family_id=family_list.family_id,
+                        type=NotificationType.TASK_ASSIGNED,
                         title=f"{family_list.name}",
                         body=f'"{item.content}" assigned to you',
                         url=f"/families/{family_list.family_id}/lists/{list_id}",
                     )
                 )
 
-        # Push: notify family about new grocery items
+        # Notify family about new grocery items
         if family_list.list_type == ListType.GROCERY:
             asyncio.create_task(
                 notify_in_background(
-                    self.db,
                     family_id=family_list.family_id,
+                    type=NotificationType.ITEMS_ADDED,
                     title=f"{family_list.name}",
                     body=f"{len(items)} new item{'s' if len(items) > 1 else ''} added",
                     url=f"/families/{family_list.family_id}/lists/{list_id}",
@@ -459,7 +464,7 @@ class ListService:
         await self.db.refresh(item)
         await publish_list_event(list_id, "item_updated", {"item_id": str(item.id)})
 
-        # Push: notify on assignment change
+        # Notify on assignment change
         if (
             "assigned_to" in update_data
             and item.assigned_to
@@ -468,20 +473,21 @@ class ListService:
         ):
             asyncio.create_task(
                 notify_in_background(
-                    self.db,
                     user_id=item.assigned_to,
+                    family_id=family_list.family_id,
+                    type=NotificationType.TASK_ASSIGNED,
                     title=f"{family_list.name}",
                     body=f'"{item.content}" assigned to you',
                     url=f"/families/{family_list.family_id}/lists/{list_id}",
                 )
             )
 
-        # Push: notify family when item completed
+        # Notify family when item completed
         if not was_done and item.status == ItemStatus.DONE:
             asyncio.create_task(
                 notify_in_background(
-                    self.db,
                     family_id=family_list.family_id,
+                    type=NotificationType.TASK_COMPLETED,
                     title=f"{family_list.name}",
                     body=f'"{item.content}" completed',
                     url=f"/families/{family_list.family_id}/lists/{list_id}",

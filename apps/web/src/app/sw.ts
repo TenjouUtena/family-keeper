@@ -93,7 +93,15 @@ self.addEventListener("push", (event: PushEvent) => {
       data: { url: data.url || "/" },
     };
 
-    event.waitUntil(self.registration.showNotification(title, options));
+    event.waitUntil(
+      self.registration.showNotification(title, options).then(() =>
+        self.clients.matchAll({ type: "window" }).then((clients) => {
+          clients.forEach((client) =>
+            client.postMessage({ type: "NEW_NOTIFICATION" }),
+          );
+        }),
+      ),
+    );
   } catch {
     // Fallback for plain text payloads
     const text = event.data.text();

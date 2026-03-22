@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -11,6 +12,7 @@ import { useAuthStore } from "@/stores/auth-store";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { isAuthenticated, isHydrated } = useAuthStore();
 
   useEffect(() => {
@@ -22,6 +24,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       router.replace("/login");
     }
   }, [isHydrated, isAuthenticated, router]);
+
+  // Instant badge refresh when SW receives a push notification
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === "NEW_NOTIFICATION") {
+        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      }
+    };
+    navigator.serviceWorker?.addEventListener("message", handler);
+    return () => {
+      navigator.serviceWorker?.removeEventListener("message", handler);
+    };
+  }, [queryClient]);
 
   if (!isHydrated) {
     return (

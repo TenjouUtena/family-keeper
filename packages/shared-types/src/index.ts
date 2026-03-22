@@ -224,3 +224,24 @@ export type MemberCalendarSettingsUpdate = {
     is_enabled: boolean;
   }[];
 };
+
+// Notifications
+export type NotificationResponse = {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  url: string | null;
+  is_read: boolean;
+  created_at: string;
+};
+
+export type NotificationListResponse = {
+  notifications: NotificationResponse[];
+  unread_count: number;
+  total_count: number;
+};
+
+export type UnreadCountResponse = {
+  count: number;
+};
