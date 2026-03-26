@@ -109,6 +109,7 @@ export type ListResponse = {
   created_at: string;
   updated_at: string;
   item_count: number;
+  position: number | null;
 };
 
 export type AttachmentResponse = {

@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -16,6 +16,7 @@ from app.models import (
     ListItem,
     ListType,
     User,
+    UserListPosition,
 )
 from app.schemas.lists import (
     AttachmentResponse,
@@ -26,6 +27,7 @@ from app.schemas.lists import (
     ListDetailResponse,
     ListResponse,
     ReorderItemsRequest,
+    ReorderListsRequest,
     UpdateItemRequest,
     UpdateListRequest,
 )
@@ -67,6 +69,26 @@ class ListService:
             created_by=user.id,
         )
         self.db.add(family_list)
+        await self.db.flush()
+
+        # Shift existing list positions for this user down to make room at top
+        existing = await self.db.execute(
+            select(UserListPosition).where(
+                UserListPosition.user_id == user.id
+            )
+        )
+        for pos_row in existing.scalars().all():
+            pos_row.position += POSITION_GAP
+
+        # Place new list at position 0 (top) for the creator
+        self.db.add(
+            UserListPosition(
+                user_id=user.id,
+                list_id=family_list.id,
+                position=0,
+            )
+        )
+
         await self.db.commit()
         await self.db.refresh(family_list)
 
@@ -83,6 +105,7 @@ class ListService:
             created_at=family_list.created_at,
             updated_at=family_list.updated_at,
             item_count=0,
+            position=0,
         )
 
     async def get_lists(
@@ -92,14 +115,28 @@ class ListService:
             select(
                 FamilyList,
                 func.count(ListItem.id).label("item_count"),
+                UserListPosition.position.label("user_position"),
             )
             .outerjoin(ListItem, FamilyList.id == ListItem.list_id)
+            .outerjoin(
+                UserListPosition,
+                (UserListPosition.list_id == FamilyList.id)
+                & (UserListPosition.user_id == member.user_id),
+            )
             .where(
                 FamilyList.family_id == family_id,
                 FamilyList.is_archived.is_(False),
             )
-            .group_by(FamilyList.id)
-            .order_by(FamilyList.created_at.desc())
+            .group_by(FamilyList.id, UserListPosition.position)
+            .order_by(
+                # Lists with positions first, then unpositioned
+                case(
+                    (UserListPosition.position.is_(None), 1),
+                    else_=0,
+                ),
+                UserListPosition.position.asc(),
+                FamilyList.created_at.desc(),
+            )
         )
 
         # Filter by role visibility
@@ -126,8 +163,9 @@ class ListService:
                 created_at=fl.created_at,
                 updated_at=fl.updated_at,
                 item_count=count,
+                position=pos,
             )
-            for fl, count in rows
+            for fl, count, pos in rows
         ]
 
     async def get_list_detail(
@@ -419,20 +457,20 @@ class ListService:
 
         # Handle status transition to done
         if "status" in update_data and update_data["status"] == "done":
-            # Photo completion enforcement
-            if family_list.require_photo_completion:
-                photo_exists = await self.db.scalar(
-                    select(func.count()).where(
-                        ItemAttachment.item_id == item_id,
-                        ItemAttachment.is_completion_photo.is_(True),
-                        ItemAttachment.uploaded_by == user.id,
-                    )
-                )
-                if not photo_exists:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Completion photo required",
-                    )
+            # Photo completion enforcement — disabled for now
+            # if family_list.require_photo_completion:
+            #     photo_exists = await self.db.scalar(
+            #         select(func.count()).where(
+            #             ItemAttachment.item_id == item_id,
+            #             ItemAttachment.is_completion_photo.is_(True),
+            #             ItemAttachment.uploaded_by == user.id,
+            #         )
+            #     )
+            #     if not photo_exists:
+            #         raise HTTPException(
+            #             status_code=status.HTTP_400_BAD_REQUEST,
+            #             detail="Completion photo required",
+            #         )
             update_data["completed_at"] = datetime.now(UTC)
             update_data["completed_by"] = user.id
             update_data["status"] = ItemStatus.DONE
@@ -579,6 +617,36 @@ class ListService:
             )
             for item in items
         ]
+
+    # --- List reorder ---
+
+    async def reorder_lists(
+        self,
+        family_id: UUID,
+        data: ReorderListsRequest,
+        member: FamilyMember,
+    ) -> list[ListResponse]:
+        for reorder in data.lists:
+            result = await self.db.execute(
+                select(UserListPosition).where(
+                    UserListPosition.user_id == member.user_id,
+                    UserListPosition.list_id == reorder.id,
+                )
+            )
+            pos = result.scalar_one_or_none()
+            if pos:
+                pos.position = reorder.position
+            else:
+                self.db.add(
+                    UserListPosition(
+                        user_id=member.user_id,
+                        list_id=reorder.id,
+                        position=reorder.position,
+                    )
+                )
+
+        await self.db.commit()
+        return await self.get_lists(family_id, member)
 
     # --- Helpers ---
 

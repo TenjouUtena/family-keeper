@@ -10,6 +10,7 @@ from app.models.push_subscription import PushSubscription
 from app.models.refresh_token import RefreshToken
 from app.models.shared_calendar import SharedCalendar
 from app.models.user import User
+from app.models.user_list_position import UserListPosition
 
 __all__ = [
     "User",
@@ -28,4 +29,5 @@ __all__ = [
     "NotificationType",
     "PushSubscription",
     "SharedCalendar",
+    "UserListPosition",
 ]

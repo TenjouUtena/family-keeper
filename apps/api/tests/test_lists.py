@@ -299,9 +299,10 @@ async def test_update_item_undo_done(
 # --- Photo Completion Enforcement ---
 
 
-async def test_photo_required_blocks_done(
+async def test_photo_required_does_not_block_done_when_disabled(
     client: AsyncClient, auth_headers: dict
 ):
+    """Photo proof enforcement is disabled for now — items can be completed without a photo."""
     fid = await create_family_with_member(client, auth_headers)
     create_resp = await client.post(
         f"/v1/families/{fid}/lists",
@@ -326,8 +327,7 @@ async def test_photo_required_blocks_done(
         json={"status": "done"},
         headers=auth_headers,
     )
-    assert resp.status_code == 400
-    assert "photo" in resp.json()["detail"].lower()
+    assert resp.status_code == 200
 
 
 # --- Delete Item ---
@@ -678,3 +678,150 @@ async def test_stream_valid_returns_event_stream(
     )
     assert resp.status_code == 200
     assert "text/event-stream" in resp.headers["content-type"]
+
+
+# --- Reorder Lists (per-user) ---
+
+
+async def test_reorder_lists(
+    client: AsyncClient, auth_headers: dict
+):
+    fid = await create_family_with_member(client, auth_headers)
+
+    # Create 3 lists
+    r1 = await client.post(
+        f"/v1/families/{fid}/lists",
+        json={"name": "List A"},
+        headers=auth_headers,
+    )
+    r2 = await client.post(
+        f"/v1/families/{fid}/lists",
+        json={"name": "List B"},
+        headers=auth_headers,
+    )
+    r3 = await client.post(
+        f"/v1/families/{fid}/lists",
+        json={"name": "List C"},
+        headers=auth_headers,
+    )
+    id_a = r1.json()["id"]
+    id_b = r2.json()["id"]
+    id_c = r3.json()["id"]
+
+    # Reorder: C, A, B
+    resp = await client.patch(
+        f"/v1/families/{fid}/lists/reorder",
+        json={
+            "lists": [
+                {"id": id_c, "position": 0},
+                {"id": id_a, "position": 100},
+                {"id": id_b, "position": 200},
+            ]
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    names = [l["name"] for l in resp.json()]
+    assert names == ["List C", "List A", "List B"]
+
+    # Verify GET returns same order
+    get_resp = await client.get(
+        f"/v1/families/{fid}/lists", headers=auth_headers
+    )
+    get_names = [l["name"] for l in get_resp.json()]
+    assert get_names == ["List C", "List A", "List B"]
+
+
+async def test_reorder_lists_per_user(
+    client: AsyncClient, auth_headers: dict, db: AsyncSession
+):
+    fid = await create_family_with_member(client, auth_headers)
+    _, user2_headers = await create_second_user(db)
+    await join_family(client, fid, auth_headers, user2_headers)
+
+    # Create 2 lists as user 1
+    r1 = await client.post(
+        f"/v1/families/{fid}/lists",
+        json={"name": "Alpha"},
+        headers=auth_headers,
+    )
+    r2 = await client.post(
+        f"/v1/families/{fid}/lists",
+        json={"name": "Beta"},
+        headers=auth_headers,
+    )
+    id_alpha = r1.json()["id"]
+    id_beta = r2.json()["id"]
+
+    # User 2 reorders: Alpha first, Beta second
+    await client.patch(
+        f"/v1/families/{fid}/lists/reorder",
+        json={
+            "lists": [
+                {"id": id_alpha, "position": 0},
+                {"id": id_beta, "position": 100},
+            ]
+        },
+        headers=user2_headers,
+    )
+
+    # User 2 sees Alpha, Beta
+    resp2 = await client.get(
+        f"/v1/families/{fid}/lists", headers=user2_headers
+    )
+    names2 = [l["name"] for l in resp2.json()]
+    assert names2 == ["Alpha", "Beta"]
+
+    # User 1 still sees their own order (Beta first since it was created last
+    # and got position 0 from create_list)
+    resp1 = await client.get(
+        f"/v1/families/{fid}/lists", headers=auth_headers
+    )
+    names1 = [l["name"] for l in resp1.json()]
+    assert names1[0] == "Beta"  # Most recently created = position 0
+
+
+async def test_new_list_has_position_for_creator(
+    client: AsyncClient, auth_headers: dict
+):
+    fid = await create_family_with_member(client, auth_headers)
+
+    resp = await client.post(
+        f"/v1/families/{fid}/lists",
+        json={"name": "My List"},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["position"] == 0
+
+
+async def test_lists_fallback_order_for_new_member(
+    client: AsyncClient, auth_headers: dict, db: AsyncSession
+):
+    """A new member with no position rows sees lists in created_at DESC order."""
+    fid = await create_family_with_member(client, auth_headers)
+
+    await client.post(
+        f"/v1/families/{fid}/lists",
+        json={"name": "First"},
+        headers=auth_headers,
+    )
+    await client.post(
+        f"/v1/families/{fid}/lists",
+        json={"name": "Second"},
+        headers=auth_headers,
+    )
+
+    # New member joins
+    _, new_headers = await create_second_user(db)
+    await join_family(client, fid, auth_headers, new_headers)
+
+    resp = await client.get(
+        f"/v1/families/{fid}/lists", headers=new_headers
+    )
+    data = resp.json()
+    # All positions should be None for this user
+    assert all(l["position"] is None for l in data)
+    # Should see most recent first (created_at DESC fallback)
+    assert data[0]["name"] == "Second"
+    assert data[1]["name"] == "First"

@@ -142,6 +142,21 @@ export function useDeleteItem(familyId: string, listId: string) {
   });
 }
 
+export function useReorderLists(familyId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (lists: { id: string; position: number }[]) =>
+      apiClient<ListResponse[]>(
+        `/v1/families/${familyId}/lists/reorder`,
+        { method: "PATCH", body: { lists } },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lists", familyId] });
+    },
+  });
+}
+
 export function useReorderItems(familyId: string, listId: string) {
   const queryClient = useQueryClient();
 

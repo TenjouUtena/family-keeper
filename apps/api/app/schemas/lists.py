@@ -37,6 +37,7 @@ class ListResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     item_count: int = 0
+    position: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -87,6 +88,15 @@ class ReorderItemRequest(BaseModel):
 
 class ReorderItemsRequest(BaseModel):
     items: list[ReorderItemRequest] = Field(min_length=1)
+
+
+class ReorderListRequest(BaseModel):
+    id: UUID
+    position: int
+
+
+class ReorderListsRequest(BaseModel):
+    lists: list[ReorderListRequest] = Field(min_length=1)
 
 
 class ItemResponse(BaseModel):
