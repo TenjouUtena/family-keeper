@@ -22,7 +22,6 @@ export default function NewListPage() {
 
   const [name, setName] = useState("");
   const [listType, setListType] = useState("todo");
-  const [requirePhoto, setRequirePhoto] = useState(false);
   const [visibleToRole, setVisibleToRole] = useState("");
   const [editableByRole, setEditableByRole] = useState("");
 
@@ -33,7 +32,7 @@ export default function NewListPage() {
     const list = await createList.mutateAsync({
       name: name.trim(),
       list_type: listType,
-      require_photo_completion: requirePhoto,
+      require_photo_completion: false,
       visible_to_role: visibleToRole || null,
       editable_by_role: editableByRole || null,
     });
@@ -79,19 +78,7 @@ export default function NewListPage() {
               </div>
             </div>
 
-            {listType === "chores" && (
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={requirePhoto}
-                  onChange={(e) => setRequirePhoto(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-indigo-600"
-                />
-                <span className="text-sm text-gray-700">
-                  Require photo proof for completion
-                </span>
-              </label>
-            )}
+            {/* Photo proof checkbox — disabled for now */}
 
             <div className="space-y-1">
               <label

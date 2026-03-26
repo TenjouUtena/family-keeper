@@ -278,7 +278,9 @@ def _make_fernet():
     return Fernet(settings.FERNET_KEY.encode())
 
 
-async def _create_cred(db: AsyncSession, user: User, *, expired: bool = False) -> GoogleOAuthCredential:
+async def _create_cred(
+    db: AsyncSession, user: User, *, expired: bool = False,
+) -> GoogleOAuthCredential:
     """Helper to create a GoogleOAuthCredential in the DB.
 
     Note: we skip db.refresh() because expire_on_commit=False keeps Python
@@ -518,7 +520,7 @@ async def test_family_events_partial_failure(
     await db.commit()
 
     # Create OAuth creds for both
-    cred1 = await _create_cred(db, test_user, expired=False)
+    await _create_cred(db, test_user, expired=False)
     fernet = _make_fernet()
     cred2 = GoogleOAuthCredential(
         user_id=user2.id,

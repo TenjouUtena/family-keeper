@@ -23,6 +23,7 @@ from app.schemas.lists import (
     ListDetailResponse,
     ListResponse,
     ReorderItemsRequest,
+    ReorderListsRequest,
     UpdateItemRequest,
     UpdateListRequest,
     UploadUrlRequest,
@@ -66,6 +67,20 @@ async def get_lists(
 ):
     service = ListService(db)
     return await service.get_lists(family_id, member)
+
+
+@router.patch(
+    "/v1/families/{family_id}/lists/reorder",
+    response_model=list[ListResponse],
+)
+async def reorder_lists(
+    family_id: UUID,
+    data: ReorderListsRequest,
+    member: FamilyMember = Depends(RequireFamilyMember()),
+    db: AsyncSession = Depends(get_db),
+):
+    service = ListService(db)
+    return await service.reorder_lists(family_id, data, member)
 
 
 # --- List-scoped endpoints ---

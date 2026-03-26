@@ -9,7 +9,6 @@ import type {
 } from "@family-keeper/shared-types";
 
 import { AttachmentThumbnail } from "@/components/attachment-thumbnail";
-import { PhotoUpload } from "@/components/photo-upload";
 import { useUpdateItem } from "@/hooks/useLists";
 
 interface ItemDetailProps {
@@ -86,11 +85,6 @@ export function ItemDetail({
     item.due_date &&
     item.status !== "done" &&
     new Date(item.due_date) < new Date();
-
-  const hasCompletionPhoto = item.attachments?.some(
-    (a) => a.is_completion_photo,
-  );
-  const needsPhoto = list.require_photo_completion && !hasCompletionPhoto;
 
   const dueDateValue = item.due_date
     ? new Date(item.due_date).toISOString().slice(0, 10)
@@ -248,20 +242,7 @@ export function ItemDetail({
         </div>
       )}
 
-      {/* Photo upload for completion proof */}
-      {needsPhoto && item.status !== "done" && (
-        <div>
-          <label className="mb-1 block text-xs font-medium text-gray-500">
-            Completion photo required
-          </label>
-          <PhotoUpload
-            familyId={familyId}
-            listId={list.id}
-            itemId={item.id}
-            isCompletionPhoto
-          />
-        </div>
-      )}
+      {/* Photo upload for completion proof — disabled for now */}
 
       {/* Completed info */}
       {item.status === "done" &&

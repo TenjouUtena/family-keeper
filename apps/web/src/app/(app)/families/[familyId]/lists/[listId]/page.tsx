@@ -323,11 +323,7 @@ export default function ListDetailPage() {
             </button>
           )}
         </div>
-        {list.require_photo_completion && (
-          <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
-            Photo proof required
-          </span>
-        )}
+        {/* Photo proof badge — disabled for now */}
       </div>
 
       {showSettings && (

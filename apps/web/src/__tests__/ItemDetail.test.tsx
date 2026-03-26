@@ -66,6 +66,7 @@ const baseList: ListDetailResponse = {
   updated_at: "2026-03-01T00:00:00Z",
   item_count: 1,
   items: [baseItem],
+  position: 1,
 };
 
 const members: FamilyMemberResponse[] = [
