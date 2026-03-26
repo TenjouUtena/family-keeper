@@ -174,9 +174,10 @@ class TestLogout:
 # Google-only user attempting password login
 # ---------------------------------------------------------------------------
 class TestGoogleOnlyUserLogin:
-    async def test_google_only_user_password_login_rejected(self, client: AsyncClient, db: AsyncSession):
+    async def test_google_only_user_password_login_rejected(
+        self, client: AsyncClient, db: AsyncSession,
+    ):
         """A user created via Google (no password_hash) gets a clear error on password login."""
-        from app.core.security import hash_password  # noqa: F811
 
         google_user = User(
             email="googleonly@example.com",
@@ -293,7 +294,11 @@ class TestGoogleAuthCallback:
             json_data={"id_token": "fake.id.token", "access_token": "at"}
         )
         certs_resp = _mock_google_certs_response()
-        claims = {"sub": "google-link-123", "email": "existing@example.com", "name": "Existing User"}
+        claims = {
+            "sub": "google-link-123",
+            "email": "existing@example.com",
+            "name": "Existing User",
+        }
 
         mock_client = _make_async_client_mock(token_resp, certs_resp)
 
@@ -345,7 +350,8 @@ class TestGoogleAuthCallback:
 
         with (
             patch("app.services.auth_service.httpx.AsyncClient", return_value=mock_client),
-            patch("app.services.auth_service.jose_jwt.decode", side_effect=Exception("decode failed")),
+            patch("app.services.auth_service.jose_jwt.decode",
+                  side_effect=Exception("decode failed")),
         ):
             res = await client.post("/v1/auth/google/callback", json={"code": "auth-code"})
 
@@ -388,7 +394,11 @@ class TestGoogleAuthCallback:
             json_data={"id_token": "fake.id.token", "access_token": "at"}
         )
         certs_resp = _mock_google_certs_response()
-        claims = {"sub": "google-inactive-sub", "email": "inactive.google@example.com", "name": "Inactive"}
+        claims = {
+            "sub": "google-inactive-sub",
+            "email": "inactive.google@example.com",
+            "name": "Inactive",
+        }
 
         mock_client = _make_async_client_mock(token_resp, certs_resp)
 

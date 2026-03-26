@@ -226,7 +226,7 @@ async def test_compress_image_downscales_large():
     """Images larger than MAX_IMAGE_DIMENSION (2048) are downscaled."""
     from PIL import Image as PILImage
 
-    from app.services.ai_service import AIService, MAX_IMAGE_DIMENSION
+    from app.services.ai_service import MAX_IMAGE_DIMENSION, AIService
 
     large_bytes = _make_test_image(4000, 3000)
     result_bytes, result_mime = AIService._compress_image(large_bytes, "image/jpeg")

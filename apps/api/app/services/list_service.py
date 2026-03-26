@@ -18,6 +18,7 @@ from app.models import (
     User,
     UserListPosition,
 )
+from app.models.notification import NotificationType
 from app.schemas.lists import (
     AttachmentResponse,
     BulkCreateItemsRequest,
@@ -31,7 +32,6 @@ from app.schemas.lists import (
     UpdateItemRequest,
     UpdateListRequest,
 )
-from app.models.notification import NotificationType
 from app.services.notification_service import (
     notify_in_background,
 )

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select, update
@@ -192,7 +192,7 @@ class NotificationService:
                 Notification.id == notification_id,
                 Notification.user_id == user_id,
             )
-            .values(dismissed_at=datetime.now(timezone.utc))
+            .values(dismissed_at=datetime.now(UTC))
         )
         await self.db.commit()
         return result.rowcount > 0

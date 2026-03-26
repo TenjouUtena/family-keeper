@@ -7,11 +7,10 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_access_token, hash_password
+from app.core.security import hash_password
 from app.models import Family, FamilyMember, User
 from app.models.notification import Notification, NotificationType
 from app.services.notification_service import NotificationService
-
 
 # --- Helpers ---
 
@@ -56,8 +55,8 @@ async def test_list_notifications(
     db.add(family)
     await db.flush()
 
-    n1 = await _create_notification(db, test_user.id, family.id, title="First")
-    n2 = await _create_notification(db, test_user.id, family.id, title="Second")
+    await _create_notification(db, test_user.id, family.id, title="First")
+    await _create_notification(db, test_user.id, family.id, title="Second")
 
     resp = await client.get("/v1/notifications", headers=auth_headers)
     assert resp.status_code == 200
@@ -81,7 +80,7 @@ async def test_list_notifications_excludes_dismissed(
     db.add(family)
     await db.flush()
 
-    n1 = await _create_notification(db, test_user.id, family.id, title="Kept")
+    await _create_notification(db, test_user.id, family.id, title="Kept")
     n2 = await _create_notification(db, test_user.id, family.id, title="Dismissed")
 
     # Dismiss n2
@@ -320,8 +319,8 @@ async def test_notify_user_push_failure_still_persists(db: AsyncSession):
 
     with patch(
         "app.services.notification_service.PushService"
-    ) as MockPush:
-        MockPush.return_value.send_to_user.side_effect = Exception("Push broke")
+    ) as mock_push:
+        mock_push.return_value.send_to_user.side_effect = Exception("Push broke")
         service = NotificationService(db)
         notif = await service.notify_user(
             user_id=user.id,

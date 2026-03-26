@@ -721,14 +721,14 @@ async def test_reorder_lists(
         headers=auth_headers,
     )
     assert resp.status_code == 200
-    names = [l["name"] for l in resp.json()]
+    names = [entry["name"] for entry in resp.json()]
     assert names == ["List C", "List A", "List B"]
 
     # Verify GET returns same order
     get_resp = await client.get(
         f"/v1/families/{fid}/lists", headers=auth_headers
     )
-    get_names = [l["name"] for l in get_resp.json()]
+    get_names = [entry["name"] for entry in get_resp.json()]
     assert get_names == ["List C", "List A", "List B"]
 
 
@@ -769,7 +769,7 @@ async def test_reorder_lists_per_user(
     resp2 = await client.get(
         f"/v1/families/{fid}/lists", headers=user2_headers
     )
-    names2 = [l["name"] for l in resp2.json()]
+    names2 = [entry["name"] for entry in resp2.json()]
     assert names2 == ["Alpha", "Beta"]
 
     # User 1 still sees their own order (Beta first since it was created last
@@ -777,7 +777,7 @@ async def test_reorder_lists_per_user(
     resp1 = await client.get(
         f"/v1/families/{fid}/lists", headers=auth_headers
     )
-    names1 = [l["name"] for l in resp1.json()]
+    names1 = [entry["name"] for entry in resp1.json()]
     assert names1[0] == "Beta"  # Most recently created = position 0
 
 
@@ -821,7 +821,7 @@ async def test_lists_fallback_order_for_new_member(
     )
     data = resp.json()
     # All positions should be None for this user
-    assert all(l["position"] is None for l in data)
+    assert all(entry["position"] is None for entry in data)
     # Should see most recent first (created_at DESC fallback)
     assert data[0]["name"] == "Second"
     assert data[1]["name"] == "First"
