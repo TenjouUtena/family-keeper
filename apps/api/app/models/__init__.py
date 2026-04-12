@@ -8,6 +8,8 @@ from app.models.list_item import ItemStatus, ListItem
 from app.models.notification import Notification, NotificationType
 from app.models.push_subscription import PushSubscription
 from app.models.refresh_token import RefreshToken
+from app.models.schedule import FamilySchedule
+from app.models.schedule_event import EventStatus, ScheduleEvent
 from app.models.shared_calendar import SharedCalendar
 from app.models.user import User
 from app.models.user_list_position import UserListPosition
@@ -30,4 +32,7 @@ __all__ = [
     "PushSubscription",
     "SharedCalendar",
     "UserListPosition",
+    "FamilySchedule",
+    "ScheduleEvent",
+    "EventStatus",
 ]

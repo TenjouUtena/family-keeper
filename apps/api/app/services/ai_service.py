@@ -144,3 +144,70 @@ class AIService:
             "input_tokens": message.usage.input_tokens,
             "output_tokens": message.usage.output_tokens,
         }
+
+    async def image_to_schedule(
+        self,
+        image_bytes: bytes,
+        mime_type: str,
+    ) -> dict:
+        """Send image to Claude Vision and extract schedule events as JSON."""
+        image_b64 = base64.b64encode(image_bytes).decode()
+        if len(image_b64) > MAX_API_IMAGE_SIZE:
+            image_bytes, mime_type = self._compress_image(image_bytes, mime_type)
+            image_b64 = base64.b64encode(image_bytes).decode()
+
+        prompt = (
+            "Extract all scheduled events from this image (calendar, planner, "
+            "whiteboard schedule, event flyer, etc). "
+            "Return a JSON array of objects, each with:\n"
+            '- "title" (string, the event name)\n'
+            '- "start_at" (string, ISO 8601 datetime e.g. "2026-04-15T09:00:00", '
+            "or date only for all-day events)\n"
+            '- "end_at" (string or null, ISO 8601 datetime for end time)\n'
+            '- "all_day" (boolean, true if no specific time is given)\n'
+            '- "location" (string or null, the venue/place if mentioned)\n'
+            '- "notes" (string or null, any extra details)\n'
+            "Return ONLY valid JSON, no other text. Example: "
+            '[{"title": "Soccer practice", "start_at": "2026-04-15T16:00:00", '
+            '"end_at": "2026-04-15T17:30:00", "all_day": false, '
+            '"location": "City Park", "notes": "Bring water bottle"}]'
+        )
+
+        message = await self.client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1024,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": mime_type,
+                                "data": image_b64,
+                            },
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ],
+        )
+
+        logger.info(
+            "ai_image_to_schedule tokens: input=%d output=%d",
+            message.usage.input_tokens,
+            message.usage.output_tokens,
+        )
+
+        raw_text = message.content[0].text.strip()
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
+        events = json.loads(raw_text)
+
+        return {
+            "events": events,
+            "input_tokens": message.usage.input_tokens,
+            "output_tokens": message.usage.output_tokens,
+        }
