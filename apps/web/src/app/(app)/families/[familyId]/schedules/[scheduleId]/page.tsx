@@ -120,13 +120,19 @@ export default function ScheduleDetailPage() {
   const handleAddEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !newDate) return;
-    const startAt = newTime
-      ? `${newDate}T${newTime}:00`
-      : `${newDate}T00:00:00`;
+    // Build a local Date so the timezone offset is included
+    const [y, m, d] = newDate.split("-").map(Number);
+    let localDate: Date;
+    if (newTime) {
+      const [h, min] = newTime.split(":").map(Number);
+      localDate = new Date(y, m - 1, d, h, min);
+    } else {
+      localDate = new Date(y, m - 1, d);
+    }
     await addEvents.mutateAsync([
       {
         title: newTitle.trim(),
-        start_at: startAt,
+        start_at: localDate.toISOString(),
         all_day: !newTime,
       },
     ]);
