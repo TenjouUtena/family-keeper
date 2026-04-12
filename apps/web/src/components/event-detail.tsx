@@ -76,21 +76,27 @@ export function EventDetail({
 
   const handleStartDateChange = (dateStr: string) => {
     if (!dateStr) return;
-    const existingTime = event.all_day
-      ? "00:00"
-      : new Date(event.start_at).toTimeString().slice(0, 5);
+    const existing = new Date(event.start_at);
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const updated = event.all_day
+      ? new Date(y, m - 1, d)
+      : new Date(y, m - 1, d, existing.getHours(), existing.getMinutes());
     updateEvent.mutate({
       eventId: event.id,
-      start_at: `${dateStr}T${existingTime}:00`,
+      start_at: updated.toISOString(),
     });
   };
 
   const handleStartTimeChange = (timeStr: string) => {
-    const existingDate = new Date(event.start_at).toISOString().slice(0, 10);
+    const existing = new Date(event.start_at);
     if (timeStr) {
+      const [h, min] = timeStr.split(":").map(Number);
+      const updated = new Date(
+        existing.getFullYear(), existing.getMonth(), existing.getDate(), h, min,
+      );
       updateEvent.mutate({
         eventId: event.id,
-        start_at: `${existingDate}T${timeStr}:00`,
+        start_at: updated.toISOString(),
         all_day: false,
       });
     } else {
@@ -106,10 +112,14 @@ export function EventDetail({
       updateEvent.mutate({ eventId: event.id, end_at: null });
       return;
     }
-    const startDate = new Date(event.start_at).toISOString().slice(0, 10);
+    const start = new Date(event.start_at);
+    const [h, min] = timeStr.split(":").map(Number);
+    const updated = new Date(
+      start.getFullYear(), start.getMonth(), start.getDate(), h, min,
+    );
     updateEvent.mutate({
       eventId: event.id,
-      end_at: `${startDate}T${timeStr}:00`,
+      end_at: updated.toISOString(),
     });
   };
 
@@ -124,13 +134,17 @@ export function EventDetail({
     }
   };
 
-  const startDateValue = new Date(event.start_at).toISOString().slice(0, 10);
+  const startLocal = new Date(event.start_at);
+  const startDateValue = `${startLocal.getFullYear()}-${String(startLocal.getMonth() + 1).padStart(2, "0")}-${String(startLocal.getDate()).padStart(2, "0")}`;
   const startTimeValue = event.all_day
     ? ""
-    : new Date(event.start_at).toTimeString().slice(0, 5);
+    : `${String(startLocal.getHours()).padStart(2, "0")}:${String(startLocal.getMinutes()).padStart(2, "0")}`;
   const endTimeValue =
     event.end_at && !event.all_day
-      ? new Date(event.end_at).toTimeString().slice(0, 5)
+      ? (() => {
+          const endLocal = new Date(event.end_at);
+          return `${String(endLocal.getHours()).padStart(2, "0")}:${String(endLocal.getMinutes()).padStart(2, "0")}`;
+        })()
       : "";
 
   return (
