@@ -226,6 +226,59 @@ export type MemberCalendarSettingsUpdate = {
   }[];
 };
 
+// Schedules
+export type ScheduleResponse = {
+  id: string;
+  family_id: string;
+  name: string;
+  description: string | null;
+  visible_to_role: string | null;
+  editable_by_role: string | null;
+  is_archived: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  event_count: number;
+  upcoming_event_at: string | null;
+};
+
+export type EventResponse = {
+  id: string;
+  schedule_id: string;
+  title: string;
+  description: string | null;
+  start_at: string;
+  end_at: string | null;
+  all_day: boolean;
+  status: "pending" | "in_progress" | "done";
+  assigned_to: string | null;
+  completed_at: string | null;
+  completed_by: string | null;
+  completed_by_username: string | null;
+  location: string | null;
+  notes: string | null;
+  created_at: string;
+};
+
+export type ScheduleDetailResponse = ScheduleResponse & {
+  events: EventResponse[];
+};
+
+export type ExtractedEvent = {
+  title: string;
+  start_at: string | null;
+  end_at: string | null;
+  all_day: boolean;
+  location: string | null;
+  notes: string | null;
+};
+
+export type ImageToScheduleResponse = {
+  events: ExtractedEvent[];
+  input_tokens: number;
+  output_tokens: number;
+};
+
 // Notifications
 export type NotificationResponse = {
   id: string;

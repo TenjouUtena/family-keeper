@@ -1,4 +1,4 @@
-from app.schemas.ai import ExtractedItem, ImageToListResponse
+from app.schemas.ai import ExtractedEvent, ExtractedItem, ImageToListResponse, ImageToScheduleResponse
 from app.schemas.auth import (
     GoogleAuthRequest,
     GoogleAuthUrlResponse,
@@ -36,6 +36,16 @@ from app.schemas.lists import (
     UpdateItemRequest,
     UpdateListRequest,
 )
+from app.schemas.schedules import (
+    BulkCreateEventsRequest,
+    CreateEventRequest,
+    CreateScheduleRequest,
+    EventResponse,
+    ScheduleDetailResponse,
+    ScheduleResponse,
+    UpdateEventRequest,
+    UpdateScheduleRequest,
+)
 from app.schemas.user import UserResponse, UserUpdateRequest
 
 __all__ = [
@@ -69,7 +79,17 @@ __all__ = [
     "UpdateListRequest",
     "ExtractedItem",
     "ImageToListResponse",
+    "ExtractedEvent",
+    "ImageToScheduleResponse",
     "CalendarEventResponse",
     "CalendarEventsResponse",
     "GoogleOAuthStatusResponse",
+    "CreateScheduleRequest",
+    "UpdateScheduleRequest",
+    "ScheduleResponse",
+    "ScheduleDetailResponse",
+    "CreateEventRequest",
+    "BulkCreateEventsRequest",
+    "UpdateEventRequest",
+    "EventResponse",
 ]

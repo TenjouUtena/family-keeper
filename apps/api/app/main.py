@@ -10,7 +10,7 @@ from sentry_sdk.integrations.starlette import StarletteIntegration
 from app.config import settings
 from app.core.redis import close_redis, get_redis
 from app.middleware.security import RequestIdMiddleware, SecurityHeadersMiddleware
-from app.routers import ai, auth, calendar, families, health, lists, notifications, push, users
+from app.routers import ai, auth, calendar, families, health, lists, notifications, push, schedules, users
 
 # Route app loggers through uvicorn's handler so they appear in stdout
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(message)s")
@@ -57,5 +57,6 @@ app.include_router(families.router)
 app.include_router(lists.router)
 app.include_router(ai.router)
 app.include_router(calendar.router)
+app.include_router(schedules.router)
 app.include_router(notifications.router)
 app.include_router(push.router)
